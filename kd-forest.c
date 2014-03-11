@@ -11,6 +11,7 @@
 
 #include "kd-forest.h"
 #include "util.h"
+#include <math.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,14 +23,6 @@ kd_node_init(kd_node_t *node, unsigned int x, unsigned int y)
   node->x = x;
   node->y = y;
   node->added = node->removed = false;
-}
-
-void
-kd_node_set_color(kd_node_t *node, uint32_t color)
-{
-  node->coords[0] = (color >> 16) & 0xFF;
-  node->coords[1] = (color >> 8) & 0xFF;
-  node->coords[2] = color & 0xFF;
 }
 
 static size_t
@@ -52,21 +45,21 @@ kd_collect_nodes(kd_node_t *root, kd_node_t **buffer, bool include_removed)
 typedef int kd_comparator(const void *a, const void* b);
 
 static int kd_compare0(const void *a, const void *b) {
-  int aval = (*(const kd_node_t **)a)->coords[0];
-  int bval = (*(const kd_node_t **)b)->coords[0];
-  return aval - bval;
+  double aval = (*(const kd_node_t **)a)->coords[0];
+  double bval = (*(const kd_node_t **)b)->coords[0];
+  return (aval > bval) - (aval < bval);
 }
 
 static int kd_compare1(const void *a, const void *b) {
-  int aval = (*(const kd_node_t **)a)->coords[1];
-  int bval = (*(const kd_node_t **)b)->coords[1];
-  return aval - bval;
+  double aval = (*(const kd_node_t **)a)->coords[1];
+  double bval = (*(const kd_node_t **)b)->coords[1];
+  return (aval > bval) - (aval < bval);
 }
 
 static int kd_compare2(const void *a, const void *b) {
-  int aval = (*(const kd_node_t **)a)->coords[2];
-  int bval = (*(const kd_node_t **)b)->coords[2];
-  return aval - bval;
+  double aval = (*(const kd_node_t **)a)->coords[2];
+  double bval = (*(const kd_node_t **)b)->coords[2];
+  return (aval > bval) - (aval < bval);
 }
 
 static kd_comparator *kd_comparators[KD_DIMEN] = {
@@ -80,8 +73,7 @@ static kd_comparator *kd_comparators[KD_DIMEN] = {
 #define KD_BUFSIZE (KD_DIMEN + 1)
 
 static kd_node_t *
-kd_build_tree_recursive(kd_node_t **buffers[KD_BUFSIZE], size_t size,
-                        unsigned int coord)
+kd_build_tree_recursive(kd_node_t **buffers[KD_BUFSIZE], size_t size, unsigned int coord)
 {
   if (size == 0) {
     return NULL;
@@ -144,27 +136,26 @@ kd_build_tree(kd_node_t **buffers[KD_BUFSIZE], size_t size)
   return kd_build_tree_recursive(buffers, size, 0);
 }
 
-static int
+static double
 kd_distance_sq(kd_node_t *a, kd_node_t *b)
 {
-  int result = 0;
+  double result = 0.0;
   for (int i = 0; i < KD_DIMEN; ++i) {
-    int d = a->coords[i] - b->coords[i];
+    double d = a->coords[i] - b->coords[i];
     result += d*d;
   }
   return result;
 }
 
 static void
-kd_find_nearest_recursive(kd_node_t *root, kd_node_t *target, kd_node_t **best,
-                          int *limit, unsigned int coord)
+kd_find_nearest_recursive(kd_node_t *root, kd_node_t *target, kd_node_t **best, double *limit, unsigned int coord)
 {
-  int dist = target->coords[coord] - root->coords[coord];
-  int dist_sq = dist*dist;
+  double dist = target->coords[coord] - root->coords[coord];
+  double dist_sq = dist*dist;
 
   if (!root->removed) {
-    int root_dist_sq = kd_distance_sq(root, target);
-    if (!*best || root_dist_sq < *limit) {
+    double root_dist_sq = kd_distance_sq(root, target);
+    if (root_dist_sq < *limit) {
       *best = root;
       *limit = root_dist_sq;
     }
@@ -172,17 +163,16 @@ kd_find_nearest_recursive(kd_node_t *root, kd_node_t *target, kd_node_t **best,
 
   coord = (coord + 1)%KD_DIMEN;
 
-  if (root->left && (dist <= 0 || !*best || dist_sq <= *limit)) {
+  if (root->left && (dist <= 0 || dist_sq <= *limit)) {
     kd_find_nearest_recursive(root->left, target, best, limit, coord);
   }
-  if (root->right && (dist >= 0 || !*best || dist_sq <= *limit)) {
+  if (root->right && (dist >= 0 || dist_sq <= *limit)) {
     kd_find_nearest_recursive(root->right, target, best, limit, coord);
   }
 }
 
 static void
-kd_find_nearest(kd_node_t *root, kd_node_t *target, kd_node_t **best,
-                int *limit)
+kd_find_nearest(kd_node_t *root, kd_node_t *target, kd_node_t **best, double *limit)
 {
   kd_find_nearest_recursive(root, target, best, limit, 0);
 }
@@ -202,8 +192,7 @@ kdf_destroy(kd_forest_t *kdf)
 }
 
 static size_t
-kdf_collect_nodes(kd_forest_t *kdf, kd_node_t **buffer, unsigned int slot,
-                  bool include_removed)
+kdf_collect_nodes(kd_forest_t *kdf, kd_node_t **buffer, unsigned int slot, bool include_removed)
 {
   size_t count = 0;
   for (unsigned int i = 0; i < slot; ++i) {
@@ -288,7 +277,7 @@ kdf_remove(kd_forest_t *kdf, kd_node_t *node)
 kd_node_t *
 kdf_find_nearest(kd_forest_t *kdf, kd_node_t *target)
 {
-  int limit;
+  double limit = INFINITY;
   kd_node_t *best = NULL;
 
   for (unsigned int i = 0; i < kdf->roots_size; ++i) {

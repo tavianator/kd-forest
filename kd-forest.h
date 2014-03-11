@@ -21,7 +21,7 @@
 // Single node in a k-d tree
 typedef struct kd_node_t {
   // Node coordinates
-  int coords[KD_DIMEN];
+  double coords[KD_DIMEN];
   // Sub-trees
   struct kd_node_t *left, *right;
   // Used to keep track of which sub-tree a node is in during construction
@@ -34,7 +34,6 @@ typedef struct kd_node_t {
 } kd_node_t;
 
 void kd_node_init(kd_node_t *node, unsigned int x, unsigned int y);
-void kd_node_set_color(kd_node_t *node, uint32_t color);
 
 // A forest of k-d trees
 typedef struct {

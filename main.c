@@ -15,16 +15,23 @@
 // Whether to sort by hue
 #define HUE_SORT 1
 
+// Which color space to use
+#define USE_RGB 0
+#define USE_LAB 1
+#define USE_LUV 0
+
 #define RANDOMIZE (!HUE_SORT)
 
 #include "kd-forest.h"
 #include "util.h"
+#include "color.h"
 #include <errno.h>
 #include <math.h>
 #include <png.h>
 #include <setjmp.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #if __unix__
 #include <unistd.h>
@@ -43,8 +50,7 @@ rand_in(unsigned int range)
 }
 
 kd_node_t *
-try_neighbor(kd_node_t *node, unsigned int width, unsigned int height,
-             int which)
+try_neighbor(kd_node_t *node, unsigned int width, unsigned int height, int which)
 {
   int dx = which%3 - 1;
   int dy = which/3 - 1;
@@ -84,8 +90,7 @@ next_neighbor(kd_node_t *node, unsigned int width, unsigned int height)
 }
 
 void
-remove_if_surrounded(kd_forest_t *kdf, kd_node_t *node, unsigned int width,
-                    unsigned int height)
+remove_if_surrounded(kd_forest_t *kdf, kd_node_t *node, unsigned int width, unsigned int height)
 {
   if (node->added && !node->removed
       && next_neighbor(node, width, height) == NULL) {
@@ -94,8 +99,7 @@ remove_if_surrounded(kd_forest_t *kdf, kd_node_t *node, unsigned int width,
 }
 
 void
-remove_non_boundary(kd_forest_t *kdf, kd_node_t *node, unsigned int width,
-                    unsigned int height)
+remove_non_boundary(kd_forest_t *kdf, kd_node_t *node, unsigned int width, unsigned int height)
 {
   for (int i = 0; i < 9; ++i) {
     kd_node_t *neighbor = try_neighbor(node, width, height, i);
@@ -165,6 +169,12 @@ main(void)
   qsort(colors, size, sizeof(uint32_t), hue_comparator);
 #endif
 
+  // Make the actual bitmap image
+  png_bytepp rows = xmalloc(height*sizeof(png_bytep));
+  for (unsigned int i = 0; i < height; ++i) {
+    rows[i] = xmalloc(3*width*sizeof(png_byte));
+  }
+
   // Make a pool of potential k-d nodes
   kd_node_t *nodes = xmalloc(size*sizeof(kd_node_t));
   for (unsigned int y = 0, i = 0; y < height; ++y) {
@@ -203,7 +213,15 @@ main(void)
       uint32_t color = colors[j];
 
       kd_node_t target;
-      kd_node_set_color(&target, color);
+#if USE_RGB
+      color_set_RGB(target.coords, color);
+#elif USE_LAB
+      color_set_Lab(target.coords, color);
+#elif USE_LUV
+      color_set_Luv(target.coords, color);
+#else
+#  error "Pick one!"
+#endif
 
       kd_node_t *new_node;
       if (j == 0) {
@@ -211,16 +229,25 @@ main(void)
         new_node = nodes + size/2 + width/2;
       } else {
         kd_node_t *nearest = kdf_find_nearest(&kdf, &target);
+        if (!nearest) {
+          abort();
+        }
         new_node = next_neighbor(nearest, width, height);
+        if (!new_node) {
+          abort();
+        }
       }
 
-      kd_node_set_color(new_node, color);
+      memcpy(new_node->coords, target.coords, sizeof(target.coords));
       kdf_insert(&kdf, new_node);
       remove_non_boundary(&kdf, new_node, width, height);
 
       if (kdf.size > max_size) {
         max_size = kdf.size;
       }
+
+      png_bytep pixel = rows[new_node->y] + 3*new_node->x;
+      color_unpack(pixel, color);
     }
   }
   printf("%s%.2f%%\t| boundary size: 0\t| max boundary size: %zu\n",
@@ -249,28 +276,19 @@ main(void)
 
   png_init_io(png_ptr, file);
   png_set_IHDR(png_ptr, info_ptr, width, height, 8,
-               PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
+               PNG_COLOR_TYPE_RGB, PNG_INTERLACE_ADAM7,
                PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
   png_set_sRGB_gAMA_and_cHRM(png_ptr, info_ptr, PNG_sRGB_INTENT_ABSOLUTE);
-
-  png_write_info(png_ptr, info_ptr);
-
-  uint8_t *row = xmalloc(3*width*sizeof(uint8_t));
-  for (unsigned int y = 0; y < height; ++y) {
-    for (unsigned int x = 0; x < width; ++x) {
-      kd_node_t *node = nodes + y*width + x;
-      row[3*x] = node->coords[0];
-      row[3*x + 1] = node->coords[1];
-      row[3*x + 2] = node->coords[2];
-    }
-    png_write_row(png_ptr, (png_bytep)row);
-  }
-
-  png_write_end(png_ptr, info_ptr);
-
-  free(row);
+  png_set_rows(png_ptr, info_ptr, rows);
+  png_write_png(png_ptr, info_ptr, PNG_TRANSFORM_IDENTITY, NULL);
   png_destroy_write_struct(&png_ptr, &info_ptr);
   fclose(file);
+
+  for (unsigned int i = 0; i < height; ++i) {
+    free(rows[i]);
+  }
+  free(rows);
+
   kdf_destroy(&kdf);
   free(nodes);
   free(colors);

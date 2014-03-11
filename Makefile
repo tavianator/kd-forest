@@ -14,8 +14,8 @@ CFLAGS ?= -std=c99 -pipe -O2 -Werror -Wall -Wpedantic -Wextra -Wno-sign-compare 
 LDFLAGS ?= -lm -lpng
 RM ?= rm -f
 
-kd-forest: kd-forest.c kd-forest.h util.c util.h main.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -o kd-forest kd-forest.c util.c main.c
+kd-forest: kd-forest.c kd-forest.h util.c util.h color.c color.h main.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -o kd-forest kd-forest.c util.c color.c main.c
 
 image: kd-forest
 	./kd-forest
