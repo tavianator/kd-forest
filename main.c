@@ -15,13 +15,7 @@
 // Whether to sort by hue
 #define HUE_SORT 1
 
-#if HUE_SORT
-#  define PASSES 16
-#  define RANDOMIZE 0
-#else
-#  define PASSES 1
-#  define RANDOMIZE 1
-#endif
+#define RANDOMIZE (!HUE_SORT)
 
 #include "kd-forest.h"
 #include "util.h"
@@ -195,8 +189,11 @@ main(void)
   size_t max_size = 0;
 
   // Do multiple passes to get rid of artifacts in HUE_SORT mode
-  for (unsigned int i = 0, progress = 0; i < PASSES; ++i) {
-    for (unsigned int j = i; j < size; j += PASSES, ++progress) {
+  const unsigned int passes = 24 - 3*ZERO_BITS;
+  for (unsigned int i = 1, progress = 0; i <= passes; ++i) {
+    unsigned int stripe = 1 << i;
+
+    for (unsigned int j = stripe/2 - 1; j < size; j += stripe, ++progress) {
       if (progress%width == 0) {
         printf("%s%.2f%%\t| boundary size: %zu\t| max boundary size: %zu%s",
                clear_line, 100.0*progress/size, kdf.size, max_size, new_line);
