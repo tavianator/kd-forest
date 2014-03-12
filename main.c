@@ -229,13 +229,7 @@ main(void)
         new_node = nodes + size/2 + width/2;
       } else {
         kd_node_t *nearest = kdf_find_nearest(&kdf, &target);
-        if (!nearest) {
-          abort();
-        }
         new_node = next_neighbor(nearest, width, height);
-        if (!new_node) {
-          abort();
-        }
       }
 
       memcpy(new_node->coords, target.coords, sizeof(target.coords));
