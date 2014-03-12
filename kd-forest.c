@@ -163,10 +163,10 @@ kd_find_nearest_recursive(kd_node_t *root, kd_node_t *target, kd_node_t **best, 
 
   coord = (coord + 1)%KD_DIMEN;
 
-  if (root->left && (dist <= 0 || dist_sq <= *limit)) {
+  if (root->left && (dist < 0.0 || dist_sq < *limit)) {
     kd_find_nearest_recursive(root->left, target, best, limit, coord);
   }
-  if (root->right && (dist >= 0 || dist_sq <= *limit)) {
+  if (root->right && (dist > 0.0 || dist_sq < *limit)) {
     kd_find_nearest_recursive(root->right, target, best, limit, coord);
   }
 }
