@@ -11,6 +11,7 @@
 
 #include "color.h"
 #include <math.h>
+#define PI 3.1415926535897932
 
 void
 color_unpack(uint8_t pixel[3], uint32_t color)
@@ -116,4 +117,25 @@ color_set_Luv(double coords[3], uint32_t color)
   coords[0] = 116.0*fY - 16.0;
   coords[1] = 13.0*coords[0]*(uprime - unprime);
   coords[2] = 13.0*coords[0]*(vprime - vnprime);
+}
+
+static double
+hue(uint32_t color)
+{
+  double RGB[3];
+  color_set_RGB(RGB, color);
+
+  double hue = atan2(sqrt(3.0)*(RGB[1] - RGB[2]), 2*RGB[0] - RGB[1] - RGB[2]);
+  if (hue < 0.0) {
+    hue += 2.0*PI;
+  }
+  return hue;
+}
+
+int
+color_comparator(const void *a, const void *b)
+{
+  double ahue = hue(*(uint32_t *)a);
+  double bhue = hue(*(uint32_t *)b);
+  return (ahue > bhue) - (ahue < bhue);
 }

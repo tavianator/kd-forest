@@ -109,33 +109,6 @@ remove_non_boundary(kd_forest_t *kdf, kd_node_t *node, unsigned int width, unsig
   }
 }
 
-#if HUE_SORT
-#define PI 3.1415926535897932
-
-static double
-hue(uint32_t color)
-{
-  int R = (color >> 16) & 0xFF;
-  int G = (color >> 8) & 0xFF;
-  int B = color & 0xFF;
-
-  double hue = atan2(sqrt(3.0)*(G - B), 2*R - G - B);
-  if (hue < 0.0) {
-    hue += 2.0*PI;
-  }
-  return hue;
-}
-
-static int
-hue_comparator(const void *a, const void *b)
-{
-  double ahue = hue(*(uint32_t *)a);
-  double bhue = hue(*(uint32_t *)b);
-  return (ahue > bhue) - (ahue < bhue);
-}
-
-#endif
-
 int
 main(void)
 {
@@ -166,7 +139,7 @@ main(void)
   }
 #endif
 #if HUE_SORT
-  qsort(colors, size, sizeof(uint32_t), hue_comparator);
+  qsort(colors, size, sizeof(uint32_t), color_comparator);
 #endif
 
   // Make the actual bitmap image
