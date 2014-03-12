@@ -50,11 +50,8 @@ rand_in(unsigned int range)
 }
 
 kd_node_t *
-try_neighbor(kd_node_t *node, unsigned int width, unsigned int height, int which)
+try_neighbor(kd_node_t *node, unsigned int width, unsigned int height, int dx, int dy)
 {
-  int dx = which%3 - 1;
-  int dy = which/3 - 1;
-
   if (dx < 0 && node->x < -dx) {
     return NULL;
   } else if (dx > 0 && node->x + dx >= width) {
@@ -68,19 +65,25 @@ try_neighbor(kd_node_t *node, unsigned int width, unsigned int height, int which
   return node + (int)width*dy + dx;
 }
 
+// Star pattern
+int neighbor_order[][2] = {
+  { -1, -1 },
+  {  0, +1 },
+  { +1, -1 },
+  { -1,  0 },
+  { +1, +1 },
+  {  0, -1 },
+  { -1, +1 },
+  { +1,  0 },
+};
+
 kd_node_t *
 next_neighbor(kd_node_t *node, unsigned int width, unsigned int height)
 {
-  unsigned int first = rand_in(9);
-
-  for (unsigned int i = first; i < first + 9; ++i) {
-    int which = i%9;
-    if (which == 4) {
-      // Skip self
-      continue;
-    }
-
-    kd_node_t *neighbor = try_neighbor(node, width, height, which);
+  unsigned int first = rand_in(8);
+  for (unsigned int i = first; i < first + 8; ++i) {
+    int *delta = neighbor_order[i%8];
+    kd_node_t *neighbor = try_neighbor(node, width, height, delta[0], delta[1]);
     if (neighbor && !neighbor->added) {
       return neighbor;
     }
@@ -101,10 +104,12 @@ remove_if_surrounded(kd_forest_t *kdf, kd_node_t *node, unsigned int width, unsi
 void
 remove_non_boundary(kd_forest_t *kdf, kd_node_t *node, unsigned int width, unsigned int height)
 {
-  for (int i = 0; i < 9; ++i) {
-    kd_node_t *neighbor = try_neighbor(node, width, height, i);
-    if (neighbor) {
-      remove_if_surrounded(kdf, neighbor, width, height);
+  for (int dy = -1; dy <= 1; ++dy) {
+    for (int dx = -1; dx <= 1; ++dx) {
+      kd_node_t *neighbor = try_neighbor(node, width, height, dx, dy);
+      if (neighbor) {
+        remove_if_surrounded(kdf, neighbor, width, height);
+      }
     }
   }
 }
