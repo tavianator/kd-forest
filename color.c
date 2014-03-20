@@ -121,12 +121,12 @@ color_set_Luv(double coords[3], uint32_t color)
 int
 color_comparator(const void *a, const void *b)
 {
-  double aRGB[3], bRGB[3];
-  color_set_RGB(aRGB, *(uint32_t *)a);
-  color_set_RGB(bRGB, *(uint32_t *)b);
+  uint8_t aRGB[3], bRGB[3];
+  color_unpack(aRGB, *(uint32_t *)a);
+  color_unpack(bRGB, *(uint32_t *)b);
 
-  double anum = aRGB[1] - aRGB[2], adenom = 2*aRGB[0] - aRGB[1] - aRGB[2];
-  double bnum = bRGB[1] - bRGB[2], bdenom = 2*bRGB[0] - bRGB[1] - bRGB[2];
+  int anum = aRGB[1] - aRGB[2], adenom = 2*aRGB[0] - aRGB[1] - aRGB[2];
+  int bnum = bRGB[1] - bRGB[2], bdenom = 2*bRGB[0] - bRGB[1] - bRGB[2];
 
   // The hue angle is defined as atan2(sqrt(3)*n/d) (+ 2*pi if negative).  But
   // since atan2() is expensive, we compute an equivalent ordering while
@@ -140,18 +140,18 @@ color_comparator(const void *a, const void *b)
   //
   // and since atan(n/d)'s range is [-pi/2, pi/2], each chunk can be strictly
   // ordered relative to the other chunks.
-  if (adenom >= 0.0) {
-    if (anum >= 0.0) {
-      if (bdenom < 0.0 || bnum < 0.0) {
+  if (adenom >= 0) {
+    if (anum >= 0) {
+      if (bdenom < 0 || bnum < 0) {
         return -1;
       }
     } else {
-      if (bdenom < 0.0 || bnum >= 0.0) {
+      if (bdenom < 0 || bnum >= 0) {
         return 1;
       }
     }
-  } else if (bdenom >= 0.0) {
-    if (bnum >= 0.0) {
+  } else if (bdenom >= 0) {
+    if (bnum >= 0) {
       return 1;
     } else {
       return -1;
@@ -159,10 +159,10 @@ color_comparator(const void *a, const void *b)
   }
 
   // Special-case zero numerators, because we treat 0/0 as 0, not NaN
-  if (anum == 0.0 || bnum == 0.0) {
-    double lhs = anum*copysign(1.0, adenom);
-    double rhs = bnum*copysign(1.0, bdenom);
-    return (lhs > rhs) - (lhs < rhs);
+  if (anum == 0 || bnum == 0) {
+    int lhs = adenom >= 0 ? anum : -anum;
+    int rhs = bdenom >= 0 ? bnum : -bnum;
+    return lhs - rhs;
   }
 
   // The points are in the same/comparable quadrants.  We can still avoid
@@ -170,7 +170,7 @@ color_comparator(const void *a, const void *b)
   // We can also avoid a division, by noting that an/ad < bn/bd iff
   // an*bd*sgn(ad*bd) < bn*ad*sgn(ad*bd).  Due to the logic above, both
   // denominators must have the same sign, so the sgn()s are redundant.
-  double lhs = anum*bdenom;
-  double rhs = bnum*adenom;
-  return (lhs > rhs) - (lhs < rhs);
+  int lhs = anum*bdenom;
+  int rhs = bnum*adenom;
+  return lhs - rhs;
 }
