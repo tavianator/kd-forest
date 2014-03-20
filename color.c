@@ -160,16 +160,16 @@ color_comparator(const void *a, const void *b)
 
   // Special-case zero numerators, because we treat 0/0 as 0, not NaN
   if (anum == 0.0 || bnum == 0.0) {
-    double lhs = anum*adenom;
-    double rhs = bnum*bdenom;
+    double lhs = anum*copysign(1.0, adenom);
+    double rhs = bnum*copysign(1.0, bdenom);
     return (lhs > rhs) - (lhs < rhs);
   }
 
   // The points are in the same/comparable quadrants.  We can still avoid
   // calculating atan(n/d) though, because it's an increasing function in n/d.
   // We can also avoid a division, by noting that an/ad < bn/bd iff
-  // an*bd*sgn(ad*bd) < bn*ad*sgn(ad*bd).  Due to the logic above, both sides of
-  // the equation must have the same sign, so the sgn()s are redundant.
+  // an*bd*sgn(ad*bd) < bn*ad*sgn(ad*bd).  Due to the logic above, both
+  // denominators must have the same sign, so the sgn()s are redundant.
   double lhs = anum*bdenom;
   double rhs = bnum*adenom;
   return (lhs > rhs) - (lhs < rhs);
