@@ -11,7 +11,6 @@
 
 #include "color.h"
 #include <math.h>
-#define PI 3.1415926535897932
 
 void
 color_unpack(uint8_t pixel[3], uint32_t color)
@@ -119,23 +118,59 @@ color_set_Luv(double coords[3], uint32_t color)
   coords[2] = 13.0*coords[0]*(vprime - vnprime);
 }
 
-static double
-hue(uint32_t color)
-{
-  double RGB[3];
-  color_set_RGB(RGB, color);
-
-  double hue = atan2(sqrt(3.0)*(RGB[1] - RGB[2]), 2*RGB[0] - RGB[1] - RGB[2]);
-  if (hue < 0.0) {
-    hue += 2.0*PI;
-  }
-  return hue;
-}
-
 int
 color_comparator(const void *a, const void *b)
 {
-  double ahue = hue(*(uint32_t *)a);
-  double bhue = hue(*(uint32_t *)b);
-  return (ahue > bhue) - (ahue < bhue);
+  double aRGB[3], bRGB[3];
+  color_set_RGB(aRGB, *(uint32_t *)a);
+  color_set_RGB(bRGB, *(uint32_t *)b);
+
+  double anum = aRGB[1] - aRGB[2], adenom = 2*aRGB[0] - aRGB[1] - aRGB[2];
+  double bnum = bRGB[1] - bRGB[2], bdenom = 2*bRGB[0] - bRGB[1] - bRGB[2];
+
+  // The hue angle is defined as atan2(sqrt(3)*n/d) (+ 2*pi if negative).  But
+  // since atan2() is expensive, we compute an equivalent ordering while
+  // avoiding trig calls.  First, handle the quadrants.  We have:
+  //
+  //   hue(n, d)
+  //     | d >= 0 && n == 0  =  0
+  //     | d >= 0 && n >  0  =  atan(n/d)
+  //     | d >= 0 && n <  0  =  atan(n/d) + 2*pi
+  //     | d <  0            =  atan(n/d) + pi
+  //
+  // and since atan(n/d)'s range is [-pi/2, pi/2], each chunk can be strictly
+  // ordered relative to the other chunks.
+  if (adenom >= 0.0) {
+    if (anum >= 0.0) {
+      if (bdenom < 0.0 || bnum < 0.0) {
+        return -1;
+      }
+    } else {
+      if (bdenom < 0.0 || bnum >= 0.0) {
+        return 1;
+      }
+    }
+  } else if (bdenom >= 0.0) {
+    if (bnum >= 0.0) {
+      return 1;
+    } else {
+      return -1;
+    }
+  }
+
+  // Special-case zero numerators, because we treat 0/0 as 0, not NaN
+  if (anum == 0.0 || bnum == 0.0) {
+    double lhs = anum*adenom;
+    double rhs = bnum*bdenom;
+    return (lhs > rhs) - (lhs < rhs);
+  }
+
+  // The points are in the same/comparable quadrants.  We can still avoid
+  // calculating atan(n/d) though, because it's an increasing function in n/d.
+  // We can also avoid a division, by noting that an/ad < bn/bd iff
+  // an*bd*sgn(ad*bd) < bn*ad*sgn(ad*bd).  Due to the logic above, both sides of
+  // the equation must have the same sign, so the sgn()s are redundant.
+  double lhs = anum*bdenom;
+  double rhs = bnum*adenom;
+  return (lhs > rhs) - (lhs < rhs);
 }
