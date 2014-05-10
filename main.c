@@ -11,7 +11,7 @@
 
 // Number of trailing zero bits on each color chanel, set to zero for all
 // 24-bit images
-#define ZERO_BITS 0
+#define BIT_DEPTH 24
 // Whether to sort by hue
 #define HUE_SORT 1
 
@@ -117,18 +117,22 @@ remove_non_boundary(kd_forest_t *kdf, kd_node_t *node, unsigned int width, unsig
 int
 main(void)
 {
-  const unsigned int jump = 1U << ZERO_BITS;
-  const unsigned int width = 1U << ((24 - 3*ZERO_BITS + 1)/2); // Round up
-  const unsigned int height = 1U << ((24 - 3*ZERO_BITS)/2);    // Round down
+  const unsigned int width = 1U << (BIT_DEPTH + 1)/2; // Round up
+  const unsigned int height = 1U << (BIT_DEPTH)/2;    // Round down
   const unsigned int size = width*height;
 
   printf("Generating a %ux%u image (%u pixels)\n", width, height, size);
 
+  // From least to most perceptually important
+  const unsigned int bskip = 1U << (24 - BIT_DEPTH)/3;
+  const unsigned int rskip = 1U << (24 - BIT_DEPTH + 1)/3;
+  const unsigned int gskip = 1U << (24 - BIT_DEPTH + 2)/3;
+
   // Generate all the colors
   uint32_t *colors = xmalloc(size*sizeof(uint32_t));
-  for (unsigned int b = 0, i = 0; b < 0x100; b += jump) {
-    for (unsigned int g = 0; g < 0x100; g += jump) {
-      for (unsigned int r = 0; r < 0x100; r += jump, ++i) {
+  for (unsigned int b = 0, i = 0; b < 0x100; b += bskip) {
+    for (unsigned int g = 0; g < 0x100; g += gskip) {
+      for (unsigned int r = 0; r < 0x100; r += rskip, ++i) {
         colors[i] = (r << 16) | (g << 8) | b;
       }
     }
@@ -177,8 +181,7 @@ main(void)
   size_t max_size = 0;
 
   // Do multiple passes to get rid of artifacts in HUE_SORT mode
-  const unsigned int passes = 24 - 3*ZERO_BITS;
-  for (unsigned int i = 1, progress = 0; i <= passes; ++i) {
+  for (unsigned int i = 1, progress = 0; i <= BIT_DEPTH; ++i) {
     unsigned int stripe = 1 << i;
 
     for (unsigned int j = stripe/2 - 1; j < size; j += stripe, ++progress) {
