@@ -151,13 +151,7 @@ create_colors(void)
 static kd_node_t *
 create_kd_nodes(void)
 {
-  kd_node_t *nodes = xmalloc(SIZE*sizeof(kd_node_t));
-  for (unsigned int y = 0, i = 0; y < HEIGHT; ++y) {
-    for (unsigned int x = 0; x < WIDTH; ++x, ++i) {
-      kd_node_init(nodes + y*WIDTH + x, x, y);
-    }
-  }
-  return nodes;
+  return xmalloc(SIZE*sizeof(kd_node_t));
 }
 
 static png_byte **
@@ -173,11 +167,20 @@ create_bitmap(void)
 }
 
 static void
-generate_image(const uint32_t *colors,
-               kd_forest_t *kdf, kd_node_t *nodes,
+generate_image(const uint32_t *colors, kd_node_t *nodes,
                unsigned int initial_x, unsigned int initial_y,
                png_byte **bitmap)
 {
+  for (unsigned int y = 0, i = 0; y < HEIGHT; ++y) {
+    for (unsigned int x = 0; x < WIDTH; ++x, ++i) {
+      kd_node_init(nodes + y*WIDTH + x, x, y);
+    }
+  }
+
+  // Make the forest
+  kd_forest_t kdf;
+  kdf_init(&kdf);
+
 #if __unix__
   bool tty = isatty(1);
   const char *clear_line = tty ? "\033[2K\r" : "";
@@ -196,7 +199,7 @@ generate_image(const uint32_t *colors,
     for (unsigned int j = stripe/2 - 1; j < SIZE; j += stripe, ++progress) {
       if (progress%WIDTH == 0) {
         printf("%s%.2f%%\t| boundary size: %zu\t| max boundary size: %zu%s",
-               clear_line, 100.0*progress/SIZE, kdf->size, max_size, new_line);
+               clear_line, 100.0*progress/SIZE, kdf.size, max_size, new_line);
         fflush(stdout);
       }
 
@@ -218,16 +221,16 @@ generate_image(const uint32_t *colors,
         // First node goes in the center
         new_node = nodes + WIDTH*initial_y + initial_x;
       } else {
-        kd_node_t *nearest = kdf_find_nearest(kdf, &target);
+        kd_node_t *nearest = kdf_find_nearest(&kdf, &target);
         new_node = next_neighbor(nearest);
       }
 
       memcpy(new_node->coords, target.coords, sizeof(target.coords));
-      kdf_insert(kdf, new_node);
-      remove_non_boundary(kdf, new_node);
+      kdf_insert(&kdf, new_node);
+      remove_non_boundary(&kdf, new_node);
 
-      if (kdf->size > max_size) {
-        max_size = kdf->size;
+      if (kdf.size > max_size) {
+        max_size = kdf.size;
       }
 
       png_byte *pixel = bitmap[new_node->y] + 3*new_node->x;
@@ -237,6 +240,8 @@ generate_image(const uint32_t *colors,
 
   printf("%s%.2f%%\t| boundary size: 0\t| max boundary size: %zu\n",
          clear_line, 100.0, max_size);
+
+  kdf_destroy(&kdf);
 }
 
 static void
@@ -286,15 +291,12 @@ main(void)
   uint32_t *colors = create_colors();
   // Make a pool of potential k-d nodes
   kd_node_t *nodes = create_kd_nodes();
-  // Make the forest
-  kd_forest_t kdf;
-  kdf_init(&kdf);
 
   // Allocate the bitmap
   png_byte **bitmap = create_bitmap();
 
   // Generate the image
-  generate_image(colors, &kdf, nodes, WIDTH/2, HEIGHT/2, bitmap);
+  generate_image(colors, nodes, WIDTH/2, HEIGHT/2, bitmap);
 
   // Write out the image
   write_png("kd-forest.png", bitmap);
@@ -304,7 +306,6 @@ main(void)
     free(bitmap[i]);
   }
   free(bitmap);
-  kdf_destroy(&kdf);
   free(nodes);
   free(colors);
   return 0;
