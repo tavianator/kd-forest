@@ -68,7 +68,10 @@ try_neighbor(kd_node_t *node, int dx, int dy)
   return node + (int)WIDTH*dy + dx;
 }
 
-// Star pattern
+// Star pattern:
+//   6 1 4
+//   3   7
+//   0 5 2
 static int neighbor_order[][2] = {
   { -1, -1 },
   {  0, +1 },
