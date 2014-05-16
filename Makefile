@@ -19,7 +19,7 @@ kd-forest: kd-forest.c kd-forest.h util.c util.h color.c color.h main.c
 	$(CC) $(CFLAGS) $(LDFLAGS) kd-forest.c util.c color.c main.c $(LIBS) -o kd-forest
 
 kd-forest.png: kd-forest
-	./kd-forest
+	./kd-forest -b 24 -s -c Lab -o kd-forest.png
 
 image: kd-forest.png
 
