@@ -9,6 +9,8 @@
  * the COPYING file or http://www.wtfpl.net/ for more details.       *
  *********************************************************************/
 
+#define _POSIX_C_SOURCE 200809L
+
 #include "kd-forest.h"
 #include "util.h"
 #include "color.h"
@@ -43,6 +45,7 @@ typedef struct {
   unsigned int bit_depth;
   mode_t mode;
   color_space_t color_space;
+  bool animate;
   const char *filename;
   bool help;
 } options_t;
@@ -168,15 +171,19 @@ print_usage(FILE *file, const char *command)
   fprintf(file, "  $ %s [-b|--bit-depth DEPTH]\n", command);
   fprintf(file, "    %s [-s|--hue-sort] [-r|--random]\n", whitespace);
   fprintf(file, "    %s [-c|--color-space RGB|Lab|Luv]\n", whitespace);
+  fprintf(file, "    %s [-a|--animate]\n", whitespace);
   fprintf(file, "    %s [-o|--output PATH]\n", whitespace);
   fprintf(file, "    %s [-h|--help]\n", whitespace);
   fprintf(file, "\n");
-  fprintf(file, "  -b, --bit-depth DEPTH:  Use all DEPTH-bit colors (default: 24)\n");
+  fprintf(file, "  -b, --bit-depth DEPTH:  Use all DEPTH-bit colors (default: 24)\n\n");
   fprintf(file, "  -s, --hue-sort:         Sort colors by hue first (default)\n");
-  fprintf(file, "  -r, --random:           Randomize colors first\n");
+  fprintf(file, "  -r, --random:           Randomize colors first\n\n");
   fprintf(file, "  -c, --color-space RGB|Lab|Luv:\n");
-  fprintf(file, "                          Use the given color space (default: Lab)\n");
+  fprintf(file, "                          Use the given color space (default: Lab)\n\n");
+  fprintf(file, "  -a, --animate:          Generate frames of an animation\n\n");
   fprintf(file, "  -o, --output PATH:      Output a PNG file at PATH (default: kd-forest.png)\n");
+  fprintf(file, "                          If -a/--animate is specified, this is treated as a\n");
+  fprintf(file, "                          directory which will hold many frames\n\n");
   fprintf(file, "  -h, --help:             Show this message\n");
 }
 
@@ -187,7 +194,8 @@ parse_options(options_t *options, int argc, char *argv[])
   options->bit_depth = 24;
   options->mode = MODE_HUE_SORT;
   options->color_space = COLOR_SPACE_LAB;
-  options->filename = "kd-forest.png";
+  options->animate = false;
+  options->filename = NULL;
   options->help = false;
 
   bool result = true;
@@ -207,6 +215,8 @@ parse_options(options_t *options, int argc, char *argv[])
       options->mode = MODE_HUE_SORT;
     } else if (parse_arg(argc, argv, "-r", "--random", NULL, &i, &error)) {
       options->mode = MODE_RANDOM;
+    } else if (parse_arg(argc, argv, "-a", "--animate", NULL, &i, &error)) {
+      options->animate = true;
     } else if (parse_arg(argc, argv, "-o", "--output", &value, &i, &error)) {
       options->filename = value;
     } else if (parse_arg(argc, argv, "-c", "--color-space", &value, &i, &error)) {
@@ -229,6 +239,11 @@ parse_options(options_t *options, int argc, char *argv[])
     if (error) {
       result = false;
     }
+  }
+
+  // Default filename depends on -a flag
+  if (!options->filename) {
+    options->filename = options->animate ? "frames" : "kd-forest.png";
   }
 
   return result;
@@ -318,7 +333,10 @@ static void
 generate_image(const state_t *state)
 {
   generate_bitmap(state);
-  write_png(state, state->options->filename);
+
+  if (!state->options->animate) {
+    write_png(state, state->options->filename);
+  }
 }
 
 static void
@@ -440,6 +458,10 @@ generate_bitmap(const state_t *state)
   kd_forest_t kdf;
   kdf_init(&kdf);
 
+  bool animate = state->options->animate;
+  unsigned int frame = 0;
+  char filename[strlen(state->options->filename) + 10];
+
   size_t max_size = 0;
 
   // Do multiple passes to get rid of artifacts in HUE_SORT mode
@@ -449,6 +471,12 @@ generate_bitmap(const state_t *state)
 
     for (unsigned int j = stripe/2 - 1; j < state->size; j += stripe, ++progress) {
       if (progress%state->width == 0) {
+        if (animate) {
+          sprintf(filename, "%s/%04u.png", state->options->filename, frame);
+          write_png(state, filename);
+          ++frame;
+        }
+
         print_progress("%.2f%%\t| boundary size: %zu\t| max boundary size: %zu",
                        100.0*progress/state->size, kdf.size, max_size);
       }
@@ -488,6 +516,25 @@ generate_bitmap(const state_t *state)
       png_byte *pixel = state->bitmap[new_node->y] + 3*new_node->x;
       color_unpack(pixel, color);
     }
+  }
+
+  if (animate) {
+#if __unix__
+    sprintf(filename, "%s/last.png", state->options->filename);
+    write_png(state, filename);
+
+    for (int i = 0; i < 120; ++i) {
+      sprintf(filename, "%s/%04u.png", state->options->filename, frame + i);
+      if (symlink("last.png", filename) != 0) {
+        abort();
+      }
+    }
+#else
+    for (int i = 0; i < 120; ++i) {
+      sprintf(filename, "%s/%04u.png", state->options->filename, frame + i);
+      write_png(state, filename);
+    }
+#endif
   }
 
   print_progress("%.2f%%\t| boundary size: 0\t| max boundary size: %zu\n",

@@ -23,7 +23,17 @@ kd-forest.png: kd-forest
 
 image: kd-forest.png
 
+kd-forest.mkv: kd-forest
+	$(RM) kd-forest.mkv
+	$(RM) -r frames
+	mkdir -p frames
+	./kd-forest -b 20 -s -c Lab -a -o frames
+	ffmpeg -r 60 -i frames/%04d.png -c:v libx264 -preset veryslow -qp 0 kd-forest.mkv
+
+anim: kd-forest.mkv
+
 clean:
 	$(RM) kd-forest
+	$(RM) -r frames
 
-.PHONY: image clean
+.PHONY: image anim clean
