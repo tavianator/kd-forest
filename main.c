@@ -206,7 +206,7 @@ parse_options(options_t *options, int argc, char *argv[])
 
     if (parse_arg(argc, argv, "-b", "--bit-depth", &value, &i, &error)) {
       if (!str_to_uint(value, &options->bit_depth)
-          || options->bit_depth <= 0
+          || options->bit_depth <= 1
           || options->bit_depth > 24) {
         fprintf(stderr, "Invalid bit depth: `%s'\n", value);
         error = true;
