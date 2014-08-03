@@ -483,16 +483,16 @@ generate_bitmap(const state_t *state)
 
       uint32_t color = state->colors[j];
 
-      kd_node_t target;
+      double target[KD_DIMEN];
       switch (state->options->color_space) {
       case COLOR_SPACE_RGB:
-        color_set_RGB(target.coords, color);
+        color_set_RGB(target, color);
         break;
       case COLOR_SPACE_LAB:
-        color_set_Lab(target.coords, color);
+        color_set_Lab(target, color);
         break;
       case COLOR_SPACE_LUV:
-        color_set_Luv(target.coords, color);
+        color_set_Luv(target, color);
         break;
       }
 
@@ -501,11 +501,11 @@ generate_bitmap(const state_t *state)
         // First node goes in the center
         new_node = nodes + state->size/2 + state->width/2;
       } else {
-        kd_node_t *nearest = kdf_find_nearest(&kdf, &target);
+        kd_node_t *nearest = kdf_find_nearest(&kdf, target);
         new_node = next_neighbor(state, nearest);
       }
 
-      memcpy(new_node->coords, target.coords, sizeof(target.coords));
+      memcpy(new_node->coords, target, sizeof(target));
       kdf_insert(&kdf, new_node);
       remove_non_boundary(state, &kdf, new_node);
 

@@ -51,6 +51,6 @@ void kdf_init(kd_forest_t *kdf);
 void kdf_destroy(kd_forest_t *kdf);
 void kdf_insert(kd_forest_t *kdf, kd_node_t *node);
 void kdf_remove(kd_forest_t *kdf, kd_node_t *node);
-kd_node_t *kdf_find_nearest(kd_forest_t *kdf, const kd_node_t *target);
+kd_node_t *kdf_find_nearest(kd_forest_t *kdf, double target[KD_DIMEN]);
 
 #endif // KD_FOREST_H

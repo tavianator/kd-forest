@@ -137,44 +137,58 @@ kd_build_tree(kd_node_t **buffers[KD_BUFSIZE], size_t size)
 }
 
 static double
-kd_distance_sq(const kd_node_t *a, const kd_node_t *b)
+kd_distance_sq(double a[KD_DIMEN], double b[KD_DIMEN])
 {
   double result = 0.0;
   for (int i = 0; i < KD_DIMEN; ++i) {
-    double d = a->coords[i] - b->coords[i];
+    double d = a[i] - b[i];
     result += d*d;
   }
   return result;
 }
 
 static void
-kd_find_nearest_recursive(kd_node_t *root, const kd_node_t *target, kd_node_t **best, double *limit, unsigned int coord)
+kd_find_nearest_recursive(kd_node_t *node, double target[KD_DIMEN], double closest[KD_DIMEN], kd_node_t **best, double *limit, unsigned int coord)
 {
-  double dist = target->coords[coord] - root->coords[coord];
-  double dist_sq = dist*dist;
-
-  if (!root->removed) {
-    double root_dist_sq = kd_distance_sq(root, target);
-    if (root_dist_sq < *limit) {
-      *best = root;
-      *limit = root_dist_sq;
+  if (!node->removed) {
+    double node_dist_sq = kd_distance_sq(node->coords, target);
+    if (node_dist_sq < *limit) {
+      *limit = node_dist_sq;
+      *best = node;
     }
   }
 
-  coord = (coord + 1)%KD_DIMEN;
-
-  if (root->left && (dist < 0.0 || dist_sq < *limit)) {
-    kd_find_nearest_recursive(root->left, target, best, limit, coord);
+  kd_node_t *first;
+  kd_node_t *second;
+  if (target[coord] < node->coords[coord]) {
+    first = node->left;
+    second = node->right;
+  } else {
+    first = node->right;
+    second = node->left;
   }
-  if (root->right && (dist > 0.0 || dist_sq < *limit)) {
-    kd_find_nearest_recursive(root->right, target, best, limit, coord);
+
+  unsigned int next = (coord + 1)%KD_DIMEN;
+
+  if (first) {
+    kd_find_nearest_recursive(first, target, closest, best, limit, next);
+  }
+
+  if (second) {
+    double new_closest[KD_DIMEN];
+    memcpy(new_closest, closest, sizeof(new_closest));
+    new_closest[coord] = node->coords[coord];
+
+    if (kd_distance_sq(new_closest, target) < *limit) {
+      kd_find_nearest_recursive(second, target, new_closest, best, limit, next);
+    }
   }
 }
 
 static void
-kd_find_nearest(kd_node_t *root, const kd_node_t *target, kd_node_t **best, double *limit)
+kd_find_nearest(kd_node_t *root, double target[KD_DIMEN], kd_node_t **best, double *limit)
 {
-  kd_find_nearest_recursive(root, target, best, limit, 0);
+  kd_find_nearest_recursive(root, target, target, best, limit, 0);
 }
 
 void
@@ -275,7 +289,7 @@ kdf_remove(kd_forest_t *kdf, kd_node_t *node)
 }
 
 kd_node_t *
-kdf_find_nearest(kd_forest_t *kdf, const kd_node_t *target)
+kdf_find_nearest(kd_forest_t *kdf, double target[KD_DIMEN])
 {
   double limit = INFINITY;
   kd_node_t *best = NULL;
