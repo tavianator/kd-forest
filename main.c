@@ -365,34 +365,29 @@ try_neighbor(const state_t *state, kd_node_t *node, int dx, int dy)
   return node + (int)state->width*dy + dx;
 }
 
-// Star pattern:
-//   6 1 4
-//   3   7
-//   0 5 2
-static int neighbor_order[][2] = {
-  { -1, -1 },
-  {  0, +1 },
-  { +1, -1 },
-  { -1,  0 },
-  { +1, +1 },
-  {  0, -1 },
-  { -1, +1 },
-  { +1,  0 },
-};
-
 static kd_node_t *
 next_neighbor(const state_t *state, kd_node_t *node)
 {
-  unsigned int first = rand_in(8);
-  for (unsigned int i = first; i < first + 8; ++i) {
-    int *delta = neighbor_order[i%8];
-    kd_node_t *neighbor = try_neighbor(state, node, delta[0], delta[1]);
-    if (neighbor && !neighbor->added) {
-      return neighbor;
+  kd_node_t *neighbors[8];
+  unsigned int size = 0;
+  for (int dy = -1; dy <= 1; ++dy) {
+    for (int dx = -1; dx <= 1; ++dx) {
+      if (dx == 0 && dy == 0) {
+        continue;
+      }
+
+      kd_node_t *neighbor = try_neighbor(state, node, dx, dy);
+      if (neighbor && !neighbor->added) {
+        neighbors[size++] = neighbor;
+      }
     }
   }
 
-  return NULL;
+  if (size == 0) {
+    return NULL;
+  }
+
+  return neighbors[rand_in(size)];
 }
 
 static void
