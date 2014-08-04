@@ -44,6 +44,7 @@ typedef enum {
 typedef struct {
   unsigned int bit_depth;
   mode_t mode;
+  unsigned int seed;
   color_space_t color_space;
   bool animate;
   const char *filename;
@@ -82,9 +83,6 @@ main(int argc, char *argv[])
     print_usage(stdout, argv[0]);
     return EXIT_SUCCESS;
   }
-
-  // For consistent images
-  srand(0);
 
   state_t state;
   init_state(&state, &options);
@@ -170,6 +168,7 @@ print_usage(FILE *file, const char *command)
   fprintf(file, "Usage:\n");
   fprintf(file, "  $ %s [-b|--bit-depth DEPTH]\n", command);
   fprintf(file, "    %s [-s|--hue-sort] [-r|--random]\n", whitespace);
+  fprintf(file, "    %s [-e|--seed SEED]\n", whitespace);
   fprintf(file, "    %s [-c|--color-space RGB|Lab|Luv]\n", whitespace);
   fprintf(file, "    %s [-a|--animate]\n", whitespace);
   fprintf(file, "    %s [-o|--output PATH]\n", whitespace);
@@ -178,6 +177,7 @@ print_usage(FILE *file, const char *command)
   fprintf(file, "  -b, --bit-depth DEPTH:  Use all DEPTH-bit colors (default: 24)\n\n");
   fprintf(file, "  -s, --hue-sort:         Sort colors by hue first (default)\n");
   fprintf(file, "  -r, --random:           Randomize colors first\n\n");
+  fprintf(file, "  -e, --seed SEED:        Seed the random number generator (default: 0)\n\n");
   fprintf(file, "  -c, --color-space RGB|Lab|Luv:\n");
   fprintf(file, "                          Use the given color space (default: Lab)\n\n");
   fprintf(file, "  -a, --animate:          Generate frames of an animation\n\n");
@@ -193,6 +193,7 @@ parse_options(options_t *options, int argc, char *argv[])
   // Set defaults
   options->bit_depth = 24;
   options->mode = MODE_HUE_SORT;
+  options->seed = 0;
   options->color_space = COLOR_SPACE_LAB;
   options->animate = false;
   options->filename = NULL;
@@ -215,6 +216,11 @@ parse_options(options_t *options, int argc, char *argv[])
       options->mode = MODE_HUE_SORT;
     } else if (parse_arg(argc, argv, "-r", "--random", NULL, &i, &error)) {
       options->mode = MODE_RANDOM;
+    } else if (parse_arg(argc, argv, "-e", "--seed", &value, &i, &error)) {
+      if (!str_to_uint(value, &options->seed)) {
+        fprintf(stderr, "Invalid random seed: `%s'\n", value);
+        error = true;
+      }
     } else if (parse_arg(argc, argv, "-a", "--animate", NULL, &i, &error)) {
       options->animate = true;
     } else if (parse_arg(argc, argv, "-o", "--output", &value, &i, &error)) {
@@ -249,18 +255,6 @@ parse_options(options_t *options, int argc, char *argv[])
   return result;
 }
 
-static unsigned int
-rand_in(unsigned int range)
-{
-  // Compensate for bias if (RAND_MAX + 1) isn't a multiple of range
-  unsigned int limit = RAND_MAX + 1U - ((RAND_MAX + 1U)%range);
-  unsigned int res;
-  do {
-    res = rand();
-  } while (res >= limit);
-  return res%range;
-}
-
 static uint32_t *
 create_colors(const state_t *state)
 {
@@ -288,7 +282,7 @@ create_colors(const state_t *state)
   case MODE_RANDOM:
     // Fisher-Yates shuffle
     for (unsigned int i = state->size; i-- > 0;) {
-      unsigned int j = rand_in(i + 1);
+      unsigned int j = xrand(i + 1);
       uint32_t temp = colors[i];
       colors[i] = colors[j];
       colors[j] = temp;
@@ -314,6 +308,8 @@ create_bitmap(const state_t *state)
 static void
 init_state(state_t *state, const options_t *options)
 {
+  xsrand(options->seed);
+
   state->options = options;
   state->width = 1U << (options->bit_depth + 1)/2; // Round up
   state->height = 1U << options->bit_depth/2; // Round down
@@ -387,7 +383,7 @@ next_neighbor(const state_t *state, kd_node_t *node)
     return NULL;
   }
 
-  return neighbors[rand_in(size)];
+  return neighbors[xrand(size)];
 }
 
 static void
