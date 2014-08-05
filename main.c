@@ -23,6 +23,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #if __unix__
 #  include <unistd.h>
 #endif
@@ -44,10 +45,10 @@ typedef enum {
 typedef struct {
   unsigned int bit_depth;
   mode_t mode;
-  unsigned int seed;
   color_space_t color_space;
   bool animate;
   const char *filename;
+  unsigned int seed;
   bool help;
 } options_t;
 
@@ -159,32 +160,170 @@ str_to_uint(const char *str, unsigned int *value)
 }
 
 static void
+strcatinc(char **destp, const char *src)
+{
+  strcpy(*destp, src);
+  *destp += strlen(src);
+}
+
+typedef enum {
+  COLORIZE_NORMAL,
+  COLORIZE_AT,
+  COLORIZE_BANG,
+  COLORIZE_STAR,
+  COLORIZE_SHORT_OPTION,
+  COLORIZE_LONG_OPTION,
+} colorize_state_t;
+
+static void
+print_colorized(FILE *file, bool tty, const char *format, ...)
+{
+  const char *bold = tty ? "\033[1m" : "";
+  const char *red = tty ? "\033[1;31m" : "";
+  const char *green = tty ? "\033[1;32m" : "";
+  const char *normal = tty ? "\033[0m" : "";
+
+  size_t size = strlen(format) + 1;
+  char colorized[16*size];
+  char *builder = colorized;
+
+  colorize_state_t state = COLORIZE_NORMAL;
+  for (size_t i = 0; i < size; ++i) {
+    char c = format[i];
+
+    if (c == '\\') {
+      *builder++ = format[++i];
+      continue;
+    }
+
+    switch (state) {
+    case COLORIZE_AT:
+      if (c == '@') {
+        strcatinc(&builder, normal);
+        state = COLORIZE_NORMAL;
+      } else {
+        *builder++ = c;
+      }
+      break;
+
+    case COLORIZE_BANG:
+      if (c == '!') {
+        strcatinc(&builder, normal);
+        state = COLORIZE_NORMAL;
+      } else {
+        *builder++ = c;
+      }
+      break;
+
+    case COLORIZE_STAR:
+      if (c == '*') {
+        strcatinc(&builder, normal);
+        state = COLORIZE_NORMAL;
+      } else {
+        *builder++ = c;
+      }
+      break;
+
+    case COLORIZE_SHORT_OPTION:
+      *builder++ = c;
+      strcatinc(&builder, normal);
+      state = COLORIZE_NORMAL;
+      break;
+
+    case COLORIZE_LONG_OPTION:
+      if (!isalpha(c) && c != '-') {
+        strcatinc(&builder, normal);
+        state = COLORIZE_NORMAL;
+      }
+      *builder++ = c;
+      break;
+
+    default:
+      switch (c) {
+      case '@':
+        state = COLORIZE_AT;
+        strcatinc(&builder, green);
+        break;
+
+      case '!':
+        state = COLORIZE_BANG;
+        strcatinc(&builder, bold);
+        break;
+
+      case '*':
+        state = COLORIZE_STAR;
+        strcatinc(&builder, red);
+        break;
+
+      case '-':
+        if (c == '-') {
+          if (format[i + 1] == '-') {
+            state = COLORIZE_LONG_OPTION;
+          } else {
+            state = COLORIZE_SHORT_OPTION;
+          }
+          strcatinc(&builder, red);
+        }
+        *builder++ = c;
+        break;
+
+      default:
+        *builder++ = c;
+        break;
+      }
+      break;
+    }
+  }
+
+  va_list args;
+  va_start(args, format);
+  vprintf(colorized, args);
+  va_end(args);
+}
+
+static void
 print_usage(FILE *file, const char *command)
 {
-  size_t length = strlen(command);
-  char whitespace[length];
-  memset(whitespace, ' ', length);
+#if __unix__
+  bool tty = isatty(fileno(file));
+#else
+  bool tty = false;
+#endif
 
-  fprintf(file, "Usage:\n");
-  fprintf(file, "  $ %s [-b|--bit-depth DEPTH]\n", command);
-  fprintf(file, "    %s [-s|--hue-sort] [-r|--random]\n", whitespace);
-  fprintf(file, "    %s [-e|--seed SEED]\n", whitespace);
-  fprintf(file, "    %s [-c|--color-space RGB|Lab|Luv]\n", whitespace);
-  fprintf(file, "    %s [-a|--animate]\n", whitespace);
-  fprintf(file, "    %s [-o|--output PATH]\n", whitespace);
-  fprintf(file, "    %s [-h|--help]\n", whitespace);
-  fprintf(file, "\n");
-  fprintf(file, "  -b, --bit-depth DEPTH:  Use all DEPTH-bit colors (default: 24)\n\n");
-  fprintf(file, "  -s, --hue-sort:         Sort colors by hue first (default)\n");
-  fprintf(file, "  -r, --random:           Randomize colors first\n\n");
-  fprintf(file, "  -e, --seed SEED:        Seed the random number generator (default: 0)\n\n");
-  fprintf(file, "  -c, --color-space RGB|Lab|Luv:\n");
-  fprintf(file, "                          Use the given color space (default: Lab)\n\n");
-  fprintf(file, "  -a, --animate:          Generate frames of an animation\n\n");
-  fprintf(file, "  -o, --output PATH:      Output a PNG file at PATH (default: kd-forest.png)\n");
-  fprintf(file, "                          If -a/--animate is specified, this is treated as a\n");
-  fprintf(file, "                          directory which will hold many frames\n\n");
-  fprintf(file, "  -h, --help:             Show this message\n");
+  size_t length = strlen(command);
+  char whitespace[length + 1];
+  memset(whitespace, ' ', length);
+  whitespace[length] = '\0';
+
+#define usage(...) print_colorized(file, tty, __VA_ARGS__)
+  usage("Usage:\n");
+  usage("  !$! *%s* [-b|--bit-depth @DEPTH@]\n", command);
+  usage("    %s [-s|--hue-sort] [-r|--random]\n", whitespace);
+  usage("    %s [-c|--color-space @RGB@|@Lab@|@Luv@]\n", whitespace);
+  usage("    %s [-a|--animate]\n", whitespace);
+  usage("    %s [-o|--output @PATH@]\n", whitespace);
+  usage("    %s [-e|--seed @SEED@]\n", whitespace);
+  usage("    %s [-h|--help]\n", whitespace);
+  usage("\n");
+  usage("  -b, --bit-depth @DEPTH@:\n");
+  usage("          Use all @DEPTH@\\-bit colors (!default!: @24@)\n\n");
+  usage("  -s, --hue-sort:\n");
+  usage("          Sort colors by hue first (!default!)\n");
+  usage("  -r, --random:\n");
+  usage("          Randomize colors first\n\n");
+  usage("  -c, --color-space @RGB@|@Lab@|@Luv@:\n");
+  usage("          Use the given color space (!default!: @Lab@)\n\n");
+  usage("  -a, --animate:\n");
+  usage("          Generate frames of an animation\n\n");
+  usage("  -o, --output @PATH@:\n");
+  usage("          Output a PNG file at @PATH@ (!default!: @kd\\-forest.png@)\n\n");
+  usage("          If -a/--animate is specified, this is treated as a directory which\n");
+  usage("          will hold many frames\n\n");
+  usage("  -e, --seed @SEED@:\n");
+  usage("          Seed the random number generator (!default!: @0@)\n\n");
+  usage("  -h, --help:\n");
+  usage("          Show this message\n");
+#undef usage
 }
 
 static bool
