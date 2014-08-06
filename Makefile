@@ -15,13 +15,20 @@ LDFLAGS ?= -Wl,-O1,--sort-common,--as-needed,-z,relro
 LIBS ?= -lm -lpng
 RM ?= rm -f
 
-kd-forest: kd-forest.c kd-forest.h util.c util.h color.c color.h main.c
-	$(CC) $(CFLAGS) $(LDFLAGS) kd-forest.c util.c color.c main.c $(LIBS) -o kd-forest
+HEADERS = color.h kd-forest.h util.h
+
+kd-forest: color.o kd-forest.o main.o util.o
+	$(CC) $(CFLAGS) $(LDFLAGS) $^ $(LIBS) -o kd-forest
+
+%.o: %.c $(HEADERS)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+image: kd-forest.png
 
 kd-forest.png: kd-forest
 	./kd-forest -b 24 -s -c Lab -o kd-forest.png
 
-image: kd-forest.png
+anim: kd-forest.mkv
 
 kd-forest.mkv: kd-forest
 	$(RM) kd-forest.mkv
@@ -30,9 +37,8 @@ kd-forest.mkv: kd-forest
 	./kd-forest -b 20 -s -c Lab -a -o frames
 	ffmpeg -r 60 -i frames/%04d.png -c:v libx264 -preset veryslow -qp 0 kd-forest.mkv
 
-anim: kd-forest.mkv
-
 clean:
+	$(RM) *.o
 	$(RM) kd-forest
 	$(RM) -r frames
 
