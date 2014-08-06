@@ -10,14 +10,14 @@
 #####################################################################
 
 CC ?= gcc
-CFLAGS ?= -std=c99 -pipe -g -O3 -flto -Werror -Wall -Wpedantic -Wextra -Wno-sign-compare -Wno-unused-parameter -Wunreachable-code -Wshadow -Wpointer-arith -Wwrite-strings -Wcast-align -Wstrict-prototypes
+CFLAGS ?= -std=c99 -D_POSIX_C_SOURCE=200809L -pipe -g -O3 -flto -Werror -Wall -Wpedantic -Wextra -Wno-sign-compare -Wno-unused-parameter -Wunreachable-code -Wshadow -Wpointer-arith -Wwrite-strings -Wcast-align -Wstrict-prototypes
 LDFLAGS ?= -Wl,-O1,--sort-common,--as-needed,-z,relro
 LIBS ?= -lm -lpng
 RM ?= rm -f
 
-HEADERS = color.h kd-forest.h util.h
+HEADERS = color.h kd-forest.h options.h util.h
 
-kd-forest: color.o kd-forest.o main.o util.o
+kd-forest: color.o kd-forest.o main.o options.o util.o
 	$(CC) $(CFLAGS) $(LDFLAGS) $^ $(LIBS) -o kd-forest
 
 %.o: %.c $(HEADERS)
