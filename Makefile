@@ -9,11 +9,11 @@
 # the COPYING file or http://www.wtfpl.net/ for more details.       #
 #####################################################################
 
-CC ?= gcc
-CFLAGS ?= -std=c99 -D_POSIX_C_SOURCE=200809L -pipe -g -O3 -flto -Werror -Wall -Wpedantic -Wextra -Wno-sign-compare -Wno-unused-parameter -Wunreachable-code -Wshadow -Wpointer-arith -Wwrite-strings -Wcast-align -Wstrict-prototypes
-LDFLAGS ?= -Wl,-O1,--sort-common,--as-needed,-z,relro
-LIBS ?= -lm -lpng
-RM ?= rm -f
+CC = gcc
+CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L -pipe -g -O3 -flto -Werror -Wall -Wpedantic -Wextra -Wno-sign-compare -Wno-unused-parameter -Wunreachable-code -Wshadow -Wpointer-arith -Wwrite-strings -Wcast-align -Wstrict-prototypes
+LDFLAGS = -Wl,-O1,--sort-common,--as-needed,-z,relro
+LIBS = -lm -lpng
+RM = rm -f
 
 HEADERS = color.h kd-forest.h options.h util.h
 
