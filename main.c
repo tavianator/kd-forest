@@ -25,6 +25,14 @@
 #  include <unistd.h>
 #endif
 
+// A single pixel in all its glory
+typedef struct {
+  double value[KD_DIMEN];
+  kd_node_t *node;
+  unsigned int x, y;
+  bool filled;
+} pixel_t;
+
 // All-encompasing state struct
 typedef struct {
   const options_t *options;
@@ -32,11 +40,12 @@ typedef struct {
   unsigned int height;
   size_t size;
   uint32_t *colors;
+  pixel_t *pixels;
   png_byte **bitmap;
 } state_t;
 
 static void init_state(state_t *state, const options_t *options);
-static void generate_image(const state_t *state);
+static void generate_image(state_t *state);
 static void destroy_state(state_t *state);
 
 // Entry point
@@ -100,6 +109,22 @@ create_colors(const state_t *state)
   return colors;
 }
 
+static pixel_t *
+create_pixels(const state_t *state)
+{
+  pixel_t *pixels = xmalloc(state->size*sizeof(pixel_t));
+  for (unsigned int y = 0, i = 0; y < state->height; ++y) {
+    for (unsigned int x = 0; x < state->width; ++x, ++i) {
+      pixel_t *pixel = pixels + i;
+      pixel->node = NULL;
+      pixel->x = x;
+      pixel->y = y;
+      pixel->filled = false;
+    }
+  }
+  return pixels;
+}
+
 static png_byte **
 create_bitmap(const state_t *state)
 {
@@ -126,14 +151,15 @@ init_state(state_t *state, const options_t *options)
          options->bit_depth, state->width, state->height, state->size);
 
   state->colors = create_colors(state);
+  state->pixels = create_pixels(state);
   state->bitmap = create_bitmap(state);
 }
 
-static void generate_bitmap(const state_t *state);
+static void generate_bitmap(state_t *state);
 static void write_png(const state_t *state, const char *filename);
 
 static void
-generate_image(const state_t *state)
+generate_image(state_t *state)
 {
   generate_bitmap(state);
 
@@ -149,68 +175,185 @@ destroy_state(state_t *state)
     free(state->bitmap[i]);
   }
   free(state->bitmap);
+  free(state->pixels);
   free(state->colors);
 }
 
-static kd_node_t *
-try_neighbor(const state_t *state, kd_node_t *node, int dx, int dy)
+static pixel_t *
+get_pixel(const state_t *state, unsigned int x, unsigned int y)
 {
-  if (dx < 0 && node->x < -dx) {
+  return state->pixels + state->width*y + x;
+}
+
+static pixel_t *
+try_neighbor(const state_t *state, pixel_t *pixel, int dx, int dy)
+{
+  if (dx < 0 && pixel->x < -dx) {
     return NULL;
-  } else if (dx > 0 && node->x + dx >= state->width) {
+  } else if (dx > 0 && pixel->x + dx >= state->width) {
     return NULL;
-  } else if (dy < 0 && node->y < -dy) {
+  } else if (dy < 0 && pixel->y < -dy) {
     return NULL;
-  } else if (dy > 0 && node->y + dy >= state->height) {
+  } else if (dy > 0 && pixel->y + dy >= state->height) {
     return NULL;
   }
 
-  return node + (int)state->width*dy + dx;
+  return pixel + (int)state->width*dy + dx;
 }
 
-static kd_node_t *
-next_neighbor(const state_t *state, kd_node_t *node)
+static unsigned int
+get_all_neighbors(const state_t *state, pixel_t *pixel, pixel_t *neighbors[8])
 {
-  kd_node_t *neighbors[8];
   unsigned int size = 0;
+
   for (int dy = -1; dy <= 1; ++dy) {
     for (int dx = -1; dx <= 1; ++dx) {
       if (dx == 0 && dy == 0) {
         continue;
       }
 
-      kd_node_t *neighbor = try_neighbor(state, node, dx, dy);
-      if (neighbor && !neighbor->added) {
+      pixel_t *neighbor = try_neighbor(state, pixel, dx, dy);
+      if (neighbor) {
         neighbors[size++] = neighbor;
       }
     }
   }
 
-  if (size == 0) {
-    return NULL;
+  return size;
+}
+
+static unsigned int
+get_neighbors(const state_t *state, pixel_t *pixel, pixel_t *neighbors[8], bool filled)
+{
+  unsigned int size = 0;
+
+  for (int dy = -1; dy <= 1; ++dy) {
+    for (int dx = -1; dx <= 1; ++dx) {
+      if (dx == 0 && dy == 0) {
+        continue;
+      }
+
+      pixel_t *neighbor = try_neighbor(state, pixel, dx, dy);
+      if (neighbor && neighbor->filled == filled) {
+        neighbors[size++] = neighbor;
+      }
+    }
   }
 
+  return size;
+}
+
+static pixel_t *
+select_empty_neighbor(const state_t *state, pixel_t *pixel)
+{
+  pixel_t *neighbors[8];
+  unsigned int size = get_neighbors(state, pixel, neighbors, false);
   return neighbors[xrand(size)];
 }
 
-static void
-remove_if_surrounded(const state_t *state, kd_forest_t *kdf, kd_node_t *node)
+static pixel_t *
+find_next_pixel(const state_t *state, const kd_forest_t *kdf, const double target[KD_DIMEN])
 {
-  if (node->added && !node->removed && next_neighbor(state, node) == NULL) {
-    kdf_remove(kdf, node);
+  kd_node_t *nearest = kdf_find_nearest(kdf, target);
+  pixel_t *pixel = get_pixel(state, nearest->x, nearest->y);
+
+  if (state->options->selection == SELECTION_MIN) {
+    pixel = select_empty_neighbor(state, pixel);
+  }
+
+  return pixel;
+}
+
+static void
+ensure_pixel_removed(kd_forest_t *kdf, pixel_t *pixel)
+{
+  if (pixel->node) {
+    kdf_remove(kdf, pixel->node);
+    pixel->node = NULL;
+  }
+}
+
+static bool
+has_empty_neighbors(const state_t *state, pixel_t *pixel)
+{
+  for (int dy = -1; dy <= 1; ++dy) {
+    for (int dx = -1; dx <= 1; ++dx) {
+      if (dx == 0 && dy == 0) {
+        continue;
+      }
+
+      pixel_t *neighbor = try_neighbor(state, pixel, dx, dy);
+      if (neighbor && !neighbor->filled) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+static void
+insert_new_pixel_min(state_t *state, kd_forest_t *kdf, pixel_t *pixel)
+{
+  pixel->filled = true;
+
+  if (has_empty_neighbors(state, pixel)) {
+    pixel->node = new_kd_node(pixel->value, pixel->x, pixel->y);
+    kdf_insert(kdf, pixel->node);
+  }
+
+  pixel_t *neighbors[8];
+  unsigned int size = get_all_neighbors(state, pixel, neighbors);
+  for (unsigned int i = 0; i < size; ++i) {
+    pixel_t *neighbor = neighbors[i];
+    if (!has_empty_neighbors(state, neighbor)) {
+      ensure_pixel_removed(kdf, neighbor);
+    }
   }
 }
 
 static void
-remove_non_boundary(const state_t *state, kd_forest_t *kdf, kd_node_t *node)
+insert_new_pixel_mean(state_t *state, kd_forest_t *kdf, pixel_t *pixel)
 {
-  for (int dy = -1; dy <= 1; ++dy) {
-    for (int dx = -1; dx <= 1; ++dx) {
-      kd_node_t *neighbor = try_neighbor(state, node, dx, dy);
-      if (neighbor) {
-        remove_if_surrounded(state, kdf, neighbor);
+  pixel->filled = true;
+  ensure_pixel_removed(kdf, pixel);
+
+  pixel_t *neighbors[8];
+  unsigned int size = get_neighbors(state, pixel, neighbors, false);
+  for (unsigned int i = 0; i < size; ++i) {
+    pixel_t *neighbor = neighbors[i];
+
+    double value[KD_DIMEN] = { 0.0 };
+
+    pixel_t *filled[8];
+    unsigned int nfilled = get_neighbors(state, neighbor, filled, true);
+    for (unsigned int j = 0; j < nfilled; ++j) {
+      for (unsigned int k = 0; k < KD_DIMEN; ++k) {
+        value[k] += filled[j]->value[k];
       }
     }
+
+    for (unsigned int j = 0; j < KD_DIMEN; ++j) {
+      value[j] /= nfilled;
+    }
+
+    ensure_pixel_removed(kdf, neighbor);
+    neighbor->node = new_kd_node(value, neighbor->x, neighbor->y);
+    kdf_insert(kdf, neighbor->node);
+  }
+}
+
+static void
+insert_new_pixel(state_t *state, kd_forest_t *kdf, pixel_t *pixel)
+{
+  switch (state->options->selection) {
+  case SELECTION_MIN:
+    insert_new_pixel_min(state, kdf, pixel);
+    break;
+
+  case SELECTION_MEAN:
+    insert_new_pixel_mean(state, kdf, pixel);
+    break;
   }
 }
 
@@ -243,15 +386,8 @@ print_progress(const char *format, ...)
 }
 
 static void
-generate_bitmap(const state_t *state)
+generate_bitmap(state_t *state)
 {
-  kd_node_t *nodes = xmalloc(state->size*sizeof(kd_node_t));
-  for (unsigned int y = 0, i = 0; y < state->height; ++y) {
-    for (unsigned int x = 0; x < state->width; ++x, ++i) {
-      kd_node_init(nodes + y*state->width + x, x, y);
-    }
-  }
-
   // Make the forest
   kd_forest_t kdf;
   kdf_init(&kdf);
@@ -294,25 +430,22 @@ generate_bitmap(const state_t *state)
         break;
       }
 
-      kd_node_t *new_node;
+      pixel_t *pixel;
       if (j == 0) {
         // First node goes in the center
-        new_node = nodes + state->size/2 + state->width/2;
+        pixel = get_pixel(state, state->width/2, state->height/2);
       } else {
-        kd_node_t *nearest = kdf_find_nearest(&kdf, target);
-        new_node = next_neighbor(state, nearest);
+        pixel = find_next_pixel(state, &kdf, target);
       }
 
-      memcpy(new_node->coords, target, sizeof(target));
-      kdf_insert(&kdf, new_node);
-      remove_non_boundary(state, &kdf, new_node);
-
+      memcpy(pixel->value, target, sizeof(target));
+      insert_new_pixel(state, &kdf, pixel);
       if (kdf.size > max_size) {
         max_size = kdf.size;
       }
 
-      png_byte *pixel = state->bitmap[new_node->y] + 3*new_node->x;
-      color_unpack(pixel, color);
+      png_byte *png_pixel = state->bitmap[pixel->y] + 3*pixel->x;
+      color_unpack(png_pixel, color);
     }
   }
 
@@ -335,11 +468,10 @@ generate_bitmap(const state_t *state)
 #endif
   }
 
-  print_progress("%.2f%%\t| boundary size: 0\t| max boundary size: %zu\n",
-                 100.0, max_size);
+  print_progress("%.2f%%\t| boundary size: %zu\t| max boundary size: %zu\n",
+                 100.0, kdf.size, max_size);
 
   kdf_destroy(&kdf);
-  free(nodes);
 }
 
 static void

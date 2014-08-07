@@ -226,6 +226,7 @@ print_usage(FILE *file, const char *command)
   usage("Usage:\n");
   usage("  !$! *%s* [-b|--bit-depth @DEPTH@]\n", command);
   usage("    %s [-s|--hue-sort] [-r|--random]\n", whitespace);
+  usage("    %s [-l|--selection @min@|@mean@]\n", whitespace);
   usage("    %s [-c|--color-space @RGB@|@Lab@|@Luv@]\n", whitespace);
   usage("    %s [-a|--animate]\n", whitespace);
   usage("    %s [-o|--output @PATH@]\n", whitespace);
@@ -238,6 +239,10 @@ print_usage(FILE *file, const char *command)
   usage("          Sort colors by hue first (!default!)\n");
   usage("  -r, --random:\n");
   usage("          Randomize colors first\n\n");
+  usage("  -l, --selection @min@|@mean@:\n");
+  usage("          Specify the selection mode (!default!: @min@)\n\n");
+  usage("          @min@:  Pick the pixel with the closest neighboring pixel\n");
+  usage("          @mean@: Pick the pixel with the closest average of all its neighbors\n\n");
   usage("  -c, --color-space @RGB@|@Lab@|@Luv@:\n");
   usage("          Use the given color space (!default!: @Lab@)\n\n");
   usage("  -a, --animate:\n");
@@ -259,10 +264,11 @@ parse_options(options_t *options, int argc, char *argv[])
   // Set defaults
   options->bit_depth = 24;
   options->mode = MODE_HUE_SORT;
-  options->seed = 0;
+  options->selection = SELECTION_MIN;
   options->color_space = COLOR_SPACE_LAB;
   options->animate = false;
   options->filename = NULL;
+  options->seed = 0;
   options->help = false;
 
   bool result = true;
@@ -282,15 +288,19 @@ parse_options(options_t *options, int argc, char *argv[])
       options->mode = MODE_HUE_SORT;
     } else if (parse_arg(argc, argv, "-r", "--random", NULL, &i, &error)) {
       options->mode = MODE_RANDOM;
-    } else if (parse_arg(argc, argv, "-e", "--seed", &value, &i, &error)) {
-      if (!str_to_uint(value, &options->seed)) {
-        fprintf(stderr, "Invalid random seed: `%s'\n", value);
-        error = true;
-      }
     } else if (parse_arg(argc, argv, "-a", "--animate", NULL, &i, &error)) {
       options->animate = true;
     } else if (parse_arg(argc, argv, "-o", "--output", &value, &i, &error)) {
       options->filename = value;
+    } else if (parse_arg(argc, argv, "-l", "--selection", &value, &i, &error)) {
+      if (strcmp(value, "min") == 0) {
+        options->selection = SELECTION_MIN;
+      } else if (strcmp(value, "mean") == 0) {
+        options->selection = SELECTION_MEAN;
+      } else {
+        fprintf(stderr, "Invalid selection mode: `%s'\n", value);
+        error = true;
+      }
     } else if (parse_arg(argc, argv, "-c", "--color-space", &value, &i, &error)) {
       if (strcmp(value, "RGB") == 0) {
         options->color_space = COLOR_SPACE_RGB;
@@ -300,6 +310,12 @@ parse_options(options_t *options, int argc, char *argv[])
         options->color_space = COLOR_SPACE_LUV;
       } else {
         fprintf(stderr, "Invalid color space: `%s'\n", value);
+        error = true;
+      }
+    } else if (parse_arg(argc, argv, "-e", "--seed", &value, &i, &error)) {
+      if (!str_to_uint(value, &options->seed)) {
+        fprintf(stderr, "Invalid random seed: `%s'\n", value);
+        error = true;
       }
     } else if (parse_arg(argc, argv, "-h", "--help", NULL, &i, &error)) {
       options->help = true;

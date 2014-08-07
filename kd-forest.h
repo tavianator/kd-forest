@@ -26,14 +26,14 @@ typedef struct kd_node_t {
   struct kd_node_t *left, *right;
   // Used to keep track of which sub-tree a node is in during construction
   bool is_left;
-  // State flags
-  bool added, removed;
+  // Weak delete support
+  bool removed;
 
   // Corresponding image position for this node
   unsigned int x, y;
 } kd_node_t;
 
-void kd_node_init(kd_node_t *node, unsigned int x, unsigned int y);
+kd_node_t *new_kd_node(double coords[KD_DIMEN], unsigned int x, unsigned int y);
 
 // A forest of k-d trees
 typedef struct {

@@ -10,17 +10,17 @@
 #####################################################################
 
 CC = gcc
-CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L -pipe -g -O3 -flto -Werror -Wall -Wpedantic -Wextra -Wno-sign-compare -Wno-unused-parameter -Wunreachable-code -Wshadow -Wpointer-arith -Wwrite-strings -Wcast-align -Wstrict-prototypes
+CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L -pipe -g -O3 -flto -Wall -Wpedantic -Wextra -Wno-sign-compare -Wno-unused-parameter -Wunreachable-code -Wshadow -Wpointer-arith -Wwrite-strings -Wcast-align -Wstrict-prototypes
 LDFLAGS = -Wl,-O1,--sort-common,--as-needed,-z,relro
 LIBS = -lm -lpng
 RM = rm -f
 
-HEADERS = color.h kd-forest.h options.h util.h
+DEPS = Makefile color.h kd-forest.h options.h util.h
 
 kd-forest: color.o kd-forest.o main.o options.o util.o
 	$(CC) $(CFLAGS) $(LDFLAGS) $^ $(LIBS) -o kd-forest
 
-%.o: %.c $(HEADERS)
+%.o: %.c $(DEPS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 image: kd-forest.png
@@ -32,10 +32,10 @@ anim: kd-forest.mkv
 
 kd-forest.mkv: kd-forest
 	$(RM) kd-forest.mkv
-	$(RM) -r frames
-	mkdir -p frames
-	./kd-forest -b 20 -s -c Lab -a -o frames
-	ffmpeg -r 60 -i frames/%04d.png -c:v libx264 -preset veryslow -qp 0 kd-forest.mkv
+	mkdir /tmp/kd-frames
+	./kd-forest -b 21 -s -l mean -c Lab -a -o /tmp/kd-frames
+	ffmpeg -r 60 -i /tmp/kd-frames/%04d.png -c:v libx264 -preset veryslow -qp 0 kd-forest.mkv
+	$(RM) -r /tmp/kd-frames
 
 clean:
 	$(RM) *.o

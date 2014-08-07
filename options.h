@@ -21,6 +21,12 @@ typedef enum {
   MODE_RANDOM,
 } mode_t;
 
+// Possible pixel selection modes
+typedef enum {
+  SELECTION_MIN,
+  SELECTION_MEAN,
+} selection_t;
+
 // Possible color spaces
 typedef enum {
   COLOR_SPACE_RGB,
@@ -32,6 +38,7 @@ typedef enum {
 typedef struct {
   unsigned int bit_depth;
   mode_t mode;
+  selection_t selection;
   color_space_t color_space;
   bool animate;
   const char *filename;

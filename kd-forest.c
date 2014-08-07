@@ -16,29 +16,49 @@
 #include <stdlib.h>
 #include <string.h>
 
-void
-kd_node_init(kd_node_t *node, unsigned int x, unsigned int y)
+kd_node_t *
+new_kd_node(double coords[KD_DIMEN], unsigned int x, unsigned int y)
 {
+  kd_node_t *node = xmalloc(sizeof(kd_node_t));
+  memcpy(node->coords, coords, sizeof(node->coords));
   node->left = node->right = NULL;
   node->x = x;
   node->y = y;
-  node->added = node->removed = false;
+  node->removed = false;
+  return node;
+}
+
+static void
+kd_destroy(kd_node_t *node)
+{
+  if (node) {
+    kd_destroy(node->left);
+    kd_destroy(node->right);
+    free(node);
+  }
 }
 
 static size_t
 kd_collect_nodes(kd_node_t *root, kd_node_t **buffer, bool include_removed)
 {
   size_t count = 0;
+
   if (include_removed || !root->removed) {
     buffer[0] = root;
     ++count;
   }
+
   if (root->left) {
     count += kd_collect_nodes(root->left, buffer + count, include_removed);
   }
   if (root->right) {
     count += kd_collect_nodes(root->right, buffer + count, include_removed);
   }
+
+  if (root->removed && !include_removed) {
+    free(root);
+  }
+
   return count;
 }
 
@@ -202,6 +222,10 @@ kdf_init(kd_forest_t *kdf)
 void
 kdf_destroy(kd_forest_t *kdf)
 {
+  for (unsigned int i = 0; i < kdf->roots_size; ++i) {
+    kd_destroy(kdf->roots[i]);
+  }
+
   free(kdf->roots);
 }
 
@@ -274,8 +298,6 @@ kdf_balance(kd_forest_t *kdf, kd_node_t *new_node, bool force)
 void
 kdf_insert(kd_forest_t *kdf, kd_node_t *node)
 {
-  node->added = true;
-
   // If half or more of the nodes are removed, force a complete rebalance
   bool force = (kdf->size_est + 1) >= 2*(kdf->size + 1);
   kdf_balance(kdf, node, force);
