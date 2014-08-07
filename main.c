@@ -400,7 +400,7 @@ generate_bitmap(state_t *state)
 
   // Do multiple passes to get rid of artifacts in HUE_SORT mode
   unsigned int bit_depth = state->options->bit_depth;
-  for (unsigned int i = 1, progress = 0; i <= bit_depth; ++i) {
+  for (unsigned int i = 1, progress = 0; i <= bit_depth + 1; ++i) {
     unsigned int stripe = 1 << i;
 
     for (unsigned int j = stripe/2 - 1; j < state->size; j += stripe, ++progress) {
