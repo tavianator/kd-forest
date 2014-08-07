@@ -26,14 +26,14 @@ kd-forest: color.o kd-forest.o main.o options.o util.o
 image: kd-forest.png
 
 kd-forest.png: kd-forest
-	./kd-forest -b 24 -s -c Lab -o kd-forest.png
+	./kd-forest -b 24 -s -l min -c Lab -o kd-forest.png
 
 anim: kd-forest.mkv
 
 kd-forest.mkv: kd-forest
 	$(RM) kd-forest.mkv
 	mkdir /tmp/kd-frames
-	./kd-forest -b 21 -s -l mean -c Lab -a -o /tmp/kd-frames
+	./kd-forest -b 19 -s -l mean -c Lab -a -o /tmp/kd-frames
 	ffmpeg -r 60 -i /tmp/kd-frames/%04d.png -c:v libx264 -preset veryslow -qp 0 kd-forest.mkv
 	$(RM) -r /tmp/kd-frames
 
