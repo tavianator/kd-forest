@@ -40,6 +40,9 @@ typedef struct {
   mode_t mode;
   selection_t selection;
   color_space_t color_space;
+  unsigned int width, height;
+  size_t ncolors, npixels;
+  unsigned int x, y;
   bool animate;
   const char *filename;
   unsigned int seed;
@@ -47,6 +50,6 @@ typedef struct {
 } options_t;
 
 bool parse_options(options_t *options, int argc, char *argv[]);
-void print_usage(FILE *file, const char *command);
+void print_usage(FILE *file, const char *command, bool verbose);
 
 #endif // OPTIONS_H

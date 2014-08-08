@@ -24,19 +24,19 @@ parse_arg(int argc, char *argv[],
           const char *short_form, const char *long_form,
           const char **value, int *i, bool *error)
 {
-  size_t short_len = strlen(short_form);
-  size_t long_len = strlen(long_form);
+  size_t short_len = short_form ? strlen(short_form) : 0;
+  size_t long_len = long_form ? strlen(long_form) : 0;
 
   const char *actual_form;
   const char *arg = argv[*i];
   const char *candidate = NULL;
 
-  if (strncmp(arg, short_form, short_len) == 0) {
+  if (short_form && strncmp(arg, short_form, short_len) == 0) {
     actual_form = short_form;
     if (strlen(arg) > short_len) {
       candidate = arg + short_len;
     }
-  } else if (strncmp(arg, long_form, long_len) == 0) {
+  } else if (long_form && strncmp(arg, long_form, long_len) == 0) {
     actual_form = long_form;
     if (strlen(arg) > long_len) {
       if (arg[long_len] == '=') {
@@ -209,7 +209,7 @@ print_colorized(FILE *file, bool tty, const char *format, ...)
 }
 
 void
-print_usage(FILE *file, const char *command)
+print_usage(FILE *file, const char *command, bool verbose)
 {
 #if __unix__
   bool tty = isatty(fileno(file));
@@ -228,10 +228,17 @@ print_usage(FILE *file, const char *command)
   usage("    %s [-s|--hue-sort] [-r|--random]\n", whitespace);
   usage("    %s [-l|--selection @min@|@mean@]\n", whitespace);
   usage("    %s [-c|--color-space @RGB@|@Lab@|@Luv@]\n", whitespace);
+  usage("    %s [-w|--width @WIDTH@] [-h|--height @HEIGHT@]\n", whitespace);
+  usage("    %s [-x @X@] [-y @Y@]\n", whitespace);
   usage("    %s [-a|--animate]\n", whitespace);
   usage("    %s [-o|--output @PATH@]\n", whitespace);
   usage("    %s [-e|--seed @SEED@]\n", whitespace);
-  usage("    %s [-h|--help]\n", whitespace);
+  usage("    %s [-?|--help]\n", whitespace);
+
+  if (!verbose) {
+    return;
+  }
+
   usage("\n");
   usage("  -b, --bit-depth @DEPTH@:\n");
   usage("          Use all @DEPTH@\\-bit colors (!default!: @24@)\n\n");
@@ -245,6 +252,12 @@ print_usage(FILE *file, const char *command)
   usage("          @mean@: Pick the pixel with the closest average of all its neighbors\n\n");
   usage("  -c, --color-space @RGB@|@Lab@|@Luv@:\n");
   usage("          Use the given color space (!default!: @Lab@)\n\n");
+  usage("  -w, --width @WIDTH@\n");
+  usage("  -h, --height @HEIGHT@:\n");
+  usage("          Generate a @WIDTH@x@HEIGHT@ image (!default!: @as small as possible@)\n\n");
+  usage("  -x @X@\n");
+  usage("  -y @Y@:\n");
+  usage("          Place the first pixel at (@X@, @Y@) (!default!: @center@)\n\n");
   usage("  -a, --animate:\n");
   usage("          Generate frames of an animation\n\n");
   usage("  -o, --output @PATH@:\n");
@@ -253,7 +266,7 @@ print_usage(FILE *file, const char *command)
   usage("          will hold many frames\n\n");
   usage("  -e, --seed @SEED@:\n");
   usage("          Seed the random number generator (!default!: @0@)\n\n");
-  usage("  -h, --help:\n");
+  usage("  -?, --help:\n");
   usage("          Show this message\n");
 #undef usage
 }
@@ -271,6 +284,8 @@ parse_options(options_t *options, int argc, char *argv[])
   options->seed = 0;
   options->help = false;
 
+  bool width_set = false, height_set = false;
+  bool x_set = false, y_set = false;
   bool result = true;
 
   for (int i = 1; i < argc; ++i) {
@@ -288,10 +303,6 @@ parse_options(options_t *options, int argc, char *argv[])
       options->mode = MODE_HUE_SORT;
     } else if (parse_arg(argc, argv, "-r", "--random", NULL, &i, &error)) {
       options->mode = MODE_RANDOM;
-    } else if (parse_arg(argc, argv, "-a", "--animate", NULL, &i, &error)) {
-      options->animate = true;
-    } else if (parse_arg(argc, argv, "-o", "--output", &value, &i, &error)) {
-      options->filename = value;
     } else if (parse_arg(argc, argv, "-l", "--selection", &value, &i, &error)) {
       if (strcmp(value, "min") == 0) {
         options->selection = SELECTION_MIN;
@@ -312,12 +323,44 @@ parse_options(options_t *options, int argc, char *argv[])
         fprintf(stderr, "Invalid color space: `%s'\n", value);
         error = true;
       }
+    } else if (parse_arg(argc, argv, "-w", "--width", &value, &i, &error)) {
+      if (str_to_uint(value, &options->width)) {
+        width_set = true;
+      } else {
+        fprintf(stderr, "Invalid width: `%s'\n", value);
+        error = true;
+      }
+    } else if (parse_arg(argc, argv, "-h", "--height", &value, &i, &error)) {
+      if (str_to_uint(value, &options->height)) {
+        height_set = true;
+      } else {
+        fprintf(stderr, "Invalid height: `%s'\n", value);
+        error = true;
+      }
+    } else if (parse_arg(argc, argv, "-x", NULL, &value, &i, &error)) {
+      if (str_to_uint(value, &options->x)) {
+        x_set = true;
+      } else {
+        fprintf(stderr, "Invalid x coordinate: `%s'\n", value);
+        error = true;
+      }
+    } else if (parse_arg(argc, argv, "-y", NULL, &value, &i, &error)) {
+      if (str_to_uint(value, &options->y)) {
+        y_set = true;
+      } else {
+        fprintf(stderr, "Invalid y coordinate: `%s'\n", value);
+        error = true;
+      }
+    } else if (parse_arg(argc, argv, "-a", "--animate", NULL, &i, &error)) {
+      options->animate = true;
+    } else if (parse_arg(argc, argv, "-o", "--output", &value, &i, &error)) {
+      options->filename = value;
     } else if (parse_arg(argc, argv, "-e", "--seed", &value, &i, &error)) {
       if (!str_to_uint(value, &options->seed)) {
         fprintf(stderr, "Invalid random seed: `%s'\n", value);
         error = true;
       }
-    } else if (parse_arg(argc, argv, "-h", "--help", NULL, &i, &error)) {
+    } else if (parse_arg(argc, argv, "-?", "--help", NULL, &i, &error)) {
       options->help = true;
     } else if (!error) {
       fprintf(stderr, "Unexpected argument `%s'\n", argv[i]);
@@ -327,6 +370,38 @@ parse_options(options_t *options, int argc, char *argv[])
     if (error) {
       result = false;
     }
+  }
+
+  options->ncolors = (size_t)1 << options->bit_depth;
+
+  if (!width_set && !height_set) {
+    // Round width up to make widescreen the default
+    options->width = 1U << (options->bit_depth + 1)/2;
+    options->height = 1U << options->bit_depth/2;
+  } else if (width_set && !height_set) {
+    options->height = (options->ncolors + options->width - 1)/options->width;
+  } else if (!width_set && height_set) {
+    options->width = (options->ncolors + options->height - 1)/options->height;
+  }
+
+  options->npixels = (size_t)options->width*options->height;
+  if (options->npixels < options->ncolors) {
+    fprintf(stderr, "Image too small (at least %zu pixels needed)\n", options->ncolors);
+    result = false;
+  }
+
+  if (!x_set) {
+    options->x = options->width/2;
+  } else if (options->x >= options->width) {
+    fprintf(stderr, "-x coordinate too big, should be less than %u\n", options->width);
+    result = false;
+  }
+
+  if (!y_set) {
+    options->y = options->height/2;
+  } else if (options->y >= options->height) {
+    fprintf(stderr, "-y coordinate too big, should be less than %u\n", options->height);
+    result = false;
   }
 
   // Default filename depends on -a flag

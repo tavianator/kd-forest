@@ -36,9 +36,6 @@ typedef struct {
 // All-encompasing state struct
 typedef struct {
   const options_t *options;
-  unsigned int width;
-  unsigned int height;
-  size_t size;
   uint32_t *colors;
   pixel_t *pixels;
   png_byte **bitmap;
@@ -55,12 +52,12 @@ main(int argc, char *argv[])
   options_t options;
   if (!parse_options(&options, argc, argv)) {
     fprintf(stderr, "\n");
-    print_usage(stderr, argv[0]);
+    print_usage(stderr, argv[0], options.help);
     return EXIT_FAILURE;
   }
 
   if (options.help) {
-    print_usage(stdout, argv[0]);
+    print_usage(stdout, argv[0], true);
     return EXIT_SUCCESS;
   }
 
@@ -72,16 +69,16 @@ main(int argc, char *argv[])
 }
 
 static uint32_t *
-create_colors(const state_t *state)
+create_colors(const options_t *options)
 {
-  const unsigned int bit_depth = state->options->bit_depth;
+  const unsigned int bit_depth = options->bit_depth;
 
   // From least to most perceptually important
   const unsigned int bskip = 1U << (24 - bit_depth)/3;
   const unsigned int rskip = 1U << (24 - bit_depth + 1)/3;
   const unsigned int gskip = 1U << (24 - bit_depth + 2)/3;
 
-  uint32_t *colors = xmalloc(state->size*sizeof(uint32_t));
+  uint32_t *colors = xmalloc(options->ncolors*sizeof(uint32_t));
   for (unsigned int b = 0, i = 0; b < 0x100; b += bskip) {
     for (unsigned int g = 0; g < 0x100; g += gskip) {
       for (unsigned int r = 0; r < 0x100; r += rskip, ++i) {
@@ -90,14 +87,14 @@ create_colors(const state_t *state)
     }
   }
 
-  switch (state->options->mode) {
+  switch (options->mode) {
   case MODE_HUE_SORT:
-    qsort(colors, state->size, sizeof(uint32_t), color_comparator);
+    qsort(colors, options->ncolors, sizeof(uint32_t), color_comparator);
     break;
 
   case MODE_RANDOM:
     // Fisher-Yates shuffle
-    for (unsigned int i = state->size; i-- > 0;) {
+    for (unsigned int i = options->ncolors; i-- > 0;) {
       unsigned int j = xrand(i + 1);
       uint32_t temp = colors[i];
       colors[i] = colors[j];
@@ -110,11 +107,11 @@ create_colors(const state_t *state)
 }
 
 static pixel_t *
-create_pixels(const state_t *state)
+create_pixels(const options_t *options)
 {
-  pixel_t *pixels = xmalloc(state->size*sizeof(pixel_t));
-  for (unsigned int y = 0, i = 0; y < state->height; ++y) {
-    for (unsigned int x = 0; x < state->width; ++x, ++i) {
+  pixel_t *pixels = xmalloc(options->npixels*sizeof(pixel_t));
+  for (unsigned int y = 0, i = 0; y < options->height; ++y) {
+    for (unsigned int x = 0; x < options->width; ++x, ++i) {
       pixel_t *pixel = pixels + i;
       pixel->node = NULL;
       pixel->x = x;
@@ -126,11 +123,11 @@ create_pixels(const state_t *state)
 }
 
 static png_byte **
-create_bitmap(const state_t *state)
+create_bitmap(const options_t *options)
 {
-  png_byte **rows = xmalloc(state->height*sizeof(png_byte *));
-  const size_t row_size = 3*state->width*sizeof(png_byte);
-  for (unsigned int i = 0; i < state->height; ++i) {
+  png_byte **rows = xmalloc(options->height*sizeof(png_byte *));
+  const size_t row_size = 4*options->width*sizeof(png_byte);
+  for (unsigned int i = 0; i < options->height; ++i) {
     rows[i] = xmalloc(row_size);
     memset(rows[i], 0, row_size);
   }
@@ -140,19 +137,15 @@ create_bitmap(const state_t *state)
 static void
 init_state(state_t *state, const options_t *options)
 {
+  printf("Generating a %u-bit, %ux%u image (%zu pixels)\n",
+         options->bit_depth, options->width, options->height, options->npixels);
+
   xsrand(options->seed);
 
   state->options = options;
-  state->width = 1U << (options->bit_depth + 1)/2; // Round up
-  state->height = 1U << options->bit_depth/2; // Round down
-  state->size = (size_t)state->width*state->height;
-
-  printf("Generating a %u-bit, %ux%u image (%zu pixels)\n",
-         options->bit_depth, state->width, state->height, state->size);
-
-  state->colors = create_colors(state);
-  state->pixels = create_pixels(state);
-  state->bitmap = create_bitmap(state);
+  state->colors = create_colors(options);
+  state->pixels = create_pixels(options);
+  state->bitmap = create_bitmap(options);
 }
 
 static void generate_bitmap(state_t *state);
@@ -171,7 +164,7 @@ generate_image(state_t *state)
 static void
 destroy_state(state_t *state)
 {
-  for (unsigned int i = 0; i < state->height; ++i) {
+  for (unsigned int i = 0; i < state->options->height; ++i) {
     free(state->bitmap[i]);
   }
   free(state->bitmap);
@@ -182,7 +175,7 @@ destroy_state(state_t *state)
 static pixel_t *
 get_pixel(const state_t *state, unsigned int x, unsigned int y)
 {
-  return state->pixels + state->width*y + x;
+  return state->pixels + state->options->width*y + x;
 }
 
 static pixel_t *
@@ -190,15 +183,15 @@ try_neighbor(const state_t *state, pixel_t *pixel, int dx, int dy)
 {
   if (dx < 0 && pixel->x < -dx) {
     return NULL;
-  } else if (dx > 0 && pixel->x + dx >= state->width) {
+  } else if (dx > 0 && pixel->x + dx >= state->options->width) {
     return NULL;
   } else if (dy < 0 && pixel->y < -dy) {
     return NULL;
-  } else if (dy > 0 && pixel->y + dy >= state->height) {
+  } else if (dy > 0 && pixel->y + dy >= state->options->height) {
     return NULL;
   }
 
-  return pixel + (int)state->width*dy + dx;
+  return pixel + (int)state->options->width*dy + dx;
 }
 
 static unsigned int
@@ -403,8 +396,8 @@ generate_bitmap(state_t *state)
   for (unsigned int i = 1, progress = 0; i <= bit_depth + 1; ++i) {
     unsigned int stripe = 1 << i;
 
-    for (unsigned int j = stripe/2 - 1; j < state->size; j += stripe, ++progress) {
-      if (progress%state->width == 0) {
+    for (unsigned int j = stripe/2 - 1; j < state->options->ncolors; j += stripe, ++progress) {
+      if (progress % state->options->width == 0) {
         if (animate) {
           sprintf(filename, "%s/%04u.png", state->options->filename, frame);
           write_png(state, filename);
@@ -412,7 +405,7 @@ generate_bitmap(state_t *state)
         }
 
         print_progress("%.2f%%\t| boundary size: %zu\t| max boundary size: %zu",
-                       100.0*progress/state->size, kdf.size, max_size);
+                       100.0*progress/state->options->ncolors, kdf.size, max_size);
       }
 
       uint32_t color = state->colors[j];
@@ -432,8 +425,7 @@ generate_bitmap(state_t *state)
 
       pixel_t *pixel;
       if (j == 0) {
-        // First node goes in the center
-        pixel = get_pixel(state, state->width/2, state->height/2);
+        pixel = get_pixel(state, state->options->x, state->options->y);
       } else {
         pixel = find_next_pixel(state, &kdf, target);
       }
@@ -444,8 +436,9 @@ generate_bitmap(state_t *state)
         max_size = kdf.size;
       }
 
-      png_byte *png_pixel = state->bitmap[pixel->y] + 3*pixel->x;
+      png_byte *png_pixel = state->bitmap[pixel->y] + 4*pixel->x;
       color_unpack(png_pixel, color);
+      png_pixel[3] = 0xFF;
     }
   }
 
@@ -499,8 +492,8 @@ write_png(const state_t *state, const char *filename)
   }
 
   png_init_io(png_ptr, file);
-  png_set_IHDR(png_ptr, info_ptr, state->width, state->height, 8,
-               PNG_COLOR_TYPE_RGB, PNG_INTERLACE_ADAM7,
+  png_set_IHDR(png_ptr, info_ptr, state->options->width, state->options->height, 8,
+               PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_ADAM7,
                PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
   png_set_sRGB_gAMA_and_cHRM(png_ptr, info_ptr, PNG_sRGB_INTENT_ABSOLUTE);
   png_set_rows(png_ptr, info_ptr, state->bitmap);
