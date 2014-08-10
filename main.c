@@ -390,6 +390,7 @@ generate_bitmap(state_t *state)
   char filename[strlen(state->options->filename) + 10];
 
   size_t max_size = 0;
+  unsigned int update_interval = 1U << (state->options->bit_depth + 1)/2;
 
   // Do multiple passes to get rid of artifacts in HUE_SORT mode
   unsigned int bit_depth = state->options->bit_depth;
@@ -397,7 +398,7 @@ generate_bitmap(state_t *state)
     unsigned int stripe = 1 << i;
 
     for (unsigned int j = stripe/2 - 1; j < state->options->ncolors; j += stripe, ++progress) {
-      if (progress % state->options->width == 0) {
+      if (progress % update_interval == 0) {
         if (animate) {
           sprintf(filename, "%s/%04u.png", state->options->filename, frame);
           write_png(state, filename);
