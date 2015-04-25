@@ -43,6 +43,5 @@ kd-forest.mkv: kd-forest
 clean:
 	$(RM) *.o
 	$(RM) kd-forest
-	$(RM) -r frames
 
 .PHONY: image anim clean
