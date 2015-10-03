@@ -10,6 +10,7 @@
  *********************************************************************/
 
 #include "color.h"
+#include "generate.h"
 #include "kd-forest.h"
 #include "options.h"
 #include "util.h"
@@ -68,44 +69,6 @@ main(int argc, char *argv[])
   return EXIT_SUCCESS;
 }
 
-static uint32_t *
-create_colors(const options_t *options)
-{
-  const unsigned int bit_depth = options->bit_depth;
-
-  // From least to most perceptually important
-  const unsigned int bskip = 1U << (24 - bit_depth)/3;
-  const unsigned int rskip = 1U << (24 - bit_depth + 1)/3;
-  const unsigned int gskip = 1U << (24 - bit_depth + 2)/3;
-
-  uint32_t *colors = xmalloc(options->ncolors*sizeof(uint32_t));
-  for (unsigned int b = 0, i = 0; b < 0x100; b += bskip) {
-    for (unsigned int g = 0; g < 0x100; g += gskip) {
-      for (unsigned int r = 0; r < 0x100; r += rskip, ++i) {
-        colors[i] = (r << 16) | (g << 8) | b;
-      }
-    }
-  }
-
-  switch (options->mode) {
-  case MODE_HUE_SORT:
-    qsort(colors, options->ncolors, sizeof(uint32_t), color_comparator);
-    break;
-
-  case MODE_RANDOM:
-    // Fisher-Yates shuffle
-    for (unsigned int i = options->ncolors; i-- > 0;) {
-      unsigned int j = xrand(i + 1);
-      uint32_t temp = colors[i];
-      colors[i] = colors[j];
-      colors[j] = temp;
-    }
-    break;
-  }
-
-  return colors;
-}
-
 static pixel_t *
 create_pixels(const options_t *options)
 {
@@ -143,7 +106,7 @@ init_state(state_t *state, const options_t *options)
   xsrand(options->seed);
 
   state->options = options;
-  state->colors = create_colors(options);
+  state->colors = generate_colors(options);
   state->pixels = create_pixels(options);
   state->bitmap = create_bitmap(options);
 }
