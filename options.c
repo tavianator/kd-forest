@@ -243,9 +243,13 @@ print_usage(FILE *file, const char *command, bool verbose)
   usage("  -b, --bit-depth @DEPTH@:\n");
   usage("          Use all @DEPTH@\\-bit colors (!default!: @24@)\n\n");
   usage("  -s, --hue-sort:\n");
-  usage("          Sort colors by hue first (!default!)\n");
+  usage("          Sort colors by hue (!default!)\n");
   usage("  -r, --random:\n");
-  usage("          Randomize colors first\n\n");
+  usage("          Randomize colors\n");
+  usage("  -M, --morton:\n");
+  usage("          Place colors in Morton order (Z\\-order)\n");
+  usage("  -H, --hilbert:\n");
+  usage("          Place colors in Hilbert curve order\n\n");
   usage("  -l, --selection @min@|@mean@:\n");
   usage("          Specify the selection mode (!default!: @min@)\n\n");
   usage("          @min@:  Pick the pixel with the closest neighboring pixel\n");
