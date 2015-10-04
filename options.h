@@ -40,6 +40,7 @@ typedef enum {
 typedef struct {
   unsigned int bit_depth;
   mode_t mode;
+  bool stripe;
   selection_t selection;
   color_space_t color_space;
   unsigned int width, height;

@@ -40,6 +40,10 @@ typedef struct {
   uint32_t *colors;
   pixel_t *pixels;
   png_byte **bitmap;
+  unsigned int iteration;
+  unsigned int update_interval;
+  unsigned int frame;
+  size_t max_boundary;
 } state_t;
 
 static void init_state(state_t *state, const options_t *options);
@@ -109,6 +113,10 @@ init_state(state_t *state, const options_t *options)
   state->colors = generate_colors(options);
   state->pixels = create_pixels(options);
   state->bitmap = create_bitmap(options);
+  state->iteration = 0;
+  state->update_interval = 1U << (state->options->bit_depth + 1)/2;
+  state->frame = 0;
+  state->max_boundary = 0;
 }
 
 static void generate_bitmap(state_t *state);
@@ -342,91 +350,96 @@ print_progress(const char *format, ...)
 }
 
 static void
+place_color(state_t *state, kd_forest_t *kdf, unsigned int i)
+{
+  if (state->iteration % state->update_interval == 0) {
+    if (state->options->animate) {
+      char filename[strlen(state->options->filename) + 10];
+      sprintf(filename, "%s/%04u.png", state->options->filename, state->frame);
+      write_png(state, filename);
+      ++state->frame;
+    }
+
+    print_progress("%.2f%%\t| boundary size: %zu\t| max boundary size: %zu",
+                   100.0*state->iteration/state->options->ncolors, kdf->size, state->max_boundary);
+  }
+
+  uint32_t color = state->colors[i];
+
+  double target[KD_DIMEN];
+  switch (state->options->color_space) {
+  case COLOR_SPACE_RGB:
+    color_set_RGB(target, color);
+    break;
+  case COLOR_SPACE_LAB:
+    color_set_Lab(target, color);
+    break;
+  case COLOR_SPACE_LUV:
+    color_set_Luv(target, color);
+    break;
+  }
+
+  pixel_t *pixel;
+  if (state->iteration == 0) {
+    pixel = get_pixel(state, state->options->x, state->options->y);
+  } else {
+    pixel = find_next_pixel(state, kdf, target);
+  }
+
+  memcpy(pixel->value, target, sizeof(target));
+  insert_new_pixel(state, kdf, pixel);
+  if (kdf->size > state->max_boundary) {
+    state->max_boundary = kdf->size;
+  }
+
+  png_byte *png_pixel = state->bitmap[pixel->y] + 4*pixel->x;
+  color_unpack(png_pixel, color);
+  png_pixel[3] = 0xFF;
+}
+
+static void
 generate_bitmap(state_t *state)
 {
   // Make the forest
   kd_forest_t kdf;
   kdf_init(&kdf);
 
-  bool animate = state->options->animate;
-  unsigned int frame = 0;
-  char filename[strlen(state->options->filename) + 10];
-
-  size_t max_size = 0;
-  unsigned int update_interval = 1U << (state->options->bit_depth + 1)/2;
-
-  // Do multiple passes to get rid of artifacts in HUE_SORT mode
-  unsigned int bit_depth = state->options->bit_depth;
-  for (unsigned int i = 1, progress = 0; i <= bit_depth + 1; ++i) {
-    unsigned int stripe = 1 << i;
-
-    for (unsigned int j = stripe/2 - 1; j < state->options->ncolors; j += stripe, ++progress) {
-      if (progress % update_interval == 0) {
-        if (animate) {
-          sprintf(filename, "%s/%04u.png", state->options->filename, frame);
-          write_png(state, filename);
-          ++frame;
-        }
-
-        print_progress("%.2f%%\t| boundary size: %zu\t| max boundary size: %zu",
-                       100.0*progress/state->options->ncolors, kdf.size, max_size);
+  if (state->options->stripe) {
+    for (unsigned int i = 1; i <= state->options->bit_depth + 1; ++i) {
+      unsigned int stripe = 1 << i;
+      for (unsigned int j = stripe/2 - 1; j < state->options->ncolors; j += stripe, ++state->iteration) {
+        place_color(state, &kdf, j);
       }
-
-      uint32_t color = state->colors[j];
-
-      double target[KD_DIMEN];
-      switch (state->options->color_space) {
-      case COLOR_SPACE_RGB:
-        color_set_RGB(target, color);
-        break;
-      case COLOR_SPACE_LAB:
-        color_set_Lab(target, color);
-        break;
-      case COLOR_SPACE_LUV:
-        color_set_Luv(target, color);
-        break;
-      }
-
-      pixel_t *pixel;
-      if (j == 0) {
-        pixel = get_pixel(state, state->options->x, state->options->y);
-      } else {
-        pixel = find_next_pixel(state, &kdf, target);
-      }
-
-      memcpy(pixel->value, target, sizeof(target));
-      insert_new_pixel(state, &kdf, pixel);
-      if (kdf.size > max_size) {
-        max_size = kdf.size;
-      }
-
-      png_byte *png_pixel = state->bitmap[pixel->y] + 4*pixel->x;
-      color_unpack(png_pixel, color);
-      png_pixel[3] = 0xFF;
+    }
+  } else {
+    for (unsigned int i = 0; i < state->options->ncolors; ++i, ++state->iteration) {
+      place_color(state, &kdf, i);
     }
   }
 
-  if (animate) {
+  if (state->options->animate) {
+    char filename[strlen(state->options->filename) + 10];
+
 #if __unix__
     sprintf(filename, "%s/last.png", state->options->filename);
     write_png(state, filename);
 
     for (int i = 0; i < 120; ++i) {
-      sprintf(filename, "%s/%04u.png", state->options->filename, frame + i);
+      sprintf(filename, "%s/%04u.png", state->options->filename, state->frame + i);
       if (symlink("last.png", filename) != 0) {
         abort();
       }
     }
 #else
     for (int i = 0; i < 120; ++i) {
-      sprintf(filename, "%s/%04u.png", state->options->filename, frame + i);
+      sprintf(filename, "%s/%04u.png", state->options->filename, state->frame + i);
       write_png(state, filename);
     }
 #endif
   }
 
   print_progress("%.2f%%\t| boundary size: %zu\t| max boundary size: %zu\n",
-                 100.0, kdf.size, max_size);
+                 100.0, kdf.size, state->max_boundary);
 
   kdf_destroy(&kdf);
 }

@@ -226,6 +226,7 @@ print_usage(FILE *file, const char *command, bool verbose)
   usage("Usage:\n");
   usage("  !$! *%s* [-b|--bit-depth @DEPTH@]\n", command);
   usage("    %s [-s|--hue-sort] [-r|--random] [-M|--morton] [-H|--hilbert]\n", whitespace);
+  usage("    %s [-t|--stripe] [-T|--no-stripe]\n", whitespace);
   usage("    %s [-l|--selection @min@|@mean@]\n", whitespace);
   usage("    %s [-c|--color-space @RGB@|@Lab@|@Luv@]\n", whitespace);
   usage("    %s [-w|--width @WIDTH@] [-h|--height @HEIGHT@]\n", whitespace);
@@ -250,6 +251,10 @@ print_usage(FILE *file, const char *command, bool verbose)
   usage("          Place colors in Morton order (Z\\-order)\n");
   usage("  -H, --hilbert:\n");
   usage("          Place colors in Hilbert curve order\n\n");
+  usage("  -t, --stripe:\n");
+  usage("  -T, --no-stripe:\n");
+  usage("          Whether to reduce artifacts by iterating through the colors in\n");
+  usage("          multiple stripes (!default!: --stripe)\n\n");
   usage("  -l, --selection @min@|@mean@:\n");
   usage("          Specify the selection mode (!default!: @min@)\n\n");
   usage("          @min@:  Pick the pixel with the closest neighboring pixel\n");
@@ -281,6 +286,7 @@ parse_options(options_t *options, int argc, char *argv[])
   // Set defaults
   options->bit_depth = 24;
   options->mode = MODE_HUE_SORT;
+  options->stripe = true;
   options->selection = SELECTION_MIN;
   options->color_space = COLOR_SPACE_LAB;
   options->animate = false;
@@ -311,6 +317,10 @@ parse_options(options_t *options, int argc, char *argv[])
       options->mode = MODE_MORTON;
     } else if (parse_arg(argc, argv, "-H", "--hilbert", NULL, &i, &error)) {
       options->mode = MODE_HILBERT;
+    } else if (parse_arg(argc, argv, "-t", "--stripe", NULL, &i, &error)) {
+      options->stripe = true;
+    } else if (parse_arg(argc, argv, "-T", "--no-stripe", NULL, &i, &error)) {
+      options->stripe = false;
     } else if (parse_arg(argc, argv, "-l", "--selection", &value, &i, &error)) {
       if (strcmp(value, "min") == 0) {
         options->selection = SELECTION_MIN;
