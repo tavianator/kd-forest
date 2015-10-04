@@ -20,6 +20,7 @@ typedef enum {
   MODE_HUE_SORT,
   MODE_RANDOM,
   MODE_MORTON,
+  MODE_HILBERT,
 } mode_t;
 
 // Possible pixel selection modes

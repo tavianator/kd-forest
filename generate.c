@@ -11,6 +11,7 @@
 
 #include "generate.h"
 #include "color.h"
+#include "hilbert.h"
 #include "util.h"
 #include <stdlib.h>
 
@@ -36,6 +37,10 @@ generate_colors(const options_t *options)
       for (unsigned int j = 0; j < bit_depth; ++j) {
         grb[j%3] |= (i & (1 << j)) >> (j - j/3);
       }
+      break;
+
+    case MODE_HILBERT:
+      hilbert_point(3, grb_bits, n, grb);
       break;
 
     default:

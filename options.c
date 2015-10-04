@@ -225,7 +225,7 @@ print_usage(FILE *file, const char *command, bool verbose)
 #define usage(...) print_colorized(file, tty, __VA_ARGS__)
   usage("Usage:\n");
   usage("  !$! *%s* [-b|--bit-depth @DEPTH@]\n", command);
-  usage("    %s [-s|--hue-sort] [-r|--random] [-M|--morton]\n", whitespace);
+  usage("    %s [-s|--hue-sort] [-r|--random] [-M|--morton] [-H|--hilbert]\n", whitespace);
   usage("    %s [-l|--selection @min@|@mean@]\n", whitespace);
   usage("    %s [-c|--color-space @RGB@|@Lab@|@Luv@]\n", whitespace);
   usage("    %s [-w|--width @WIDTH@] [-h|--height @HEIGHT@]\n", whitespace);
@@ -305,6 +305,8 @@ parse_options(options_t *options, int argc, char *argv[])
       options->mode = MODE_RANDOM;
     } else if (parse_arg(argc, argv, "-M", "--morton", NULL, &i, &error)) {
       options->mode = MODE_MORTON;
+    } else if (parse_arg(argc, argv, "-H", "--hilbert", NULL, &i, &error)) {
+      options->mode = MODE_HILBERT;
     } else if (parse_arg(argc, argv, "-l", "--selection", &value, &i, &error)) {
       if (strcmp(value, "min") == 0) {
         options->selection = SELECTION_MIN;

@@ -15,12 +15,12 @@ LDFLAGS = -Wl,-O1,--sort-common,--as-needed,-z,relro
 LIBS = -lm -lpng
 RM = rm -f
 
-DEPS = Makefile color.h generate.h kd-forest.h options.h util.h
+DEPS = Makefile color.h hilbert.h generate.h kd-forest.h options.h util.h
 
 IMAGEFLAGS = -b 24 -s -l min -c Lab
 ANIMFLAGS = -b 19 -s -l mean -c Lab
 
-kd-forest: color.o generate.o kd-forest.o main.o options.o util.o
+kd-forest: color.o generate.o hilbert.o kd-forest.o main.o options.o util.o
 	$(CC) $(CFLAGS) $(LDFLAGS) $^ $(LIBS) -o kd-forest
 
 %.o: %.c $(DEPS)
