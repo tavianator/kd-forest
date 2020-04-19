@@ -2,6 +2,7 @@
 
 pub mod forest;
 pub mod kd;
+pub mod soft;
 pub mod vp;
 
 use ordered_float::OrderedFloat;
