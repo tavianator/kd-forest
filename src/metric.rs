@@ -1,5 +1,6 @@
 //! [Metric spaces](https://en.wikipedia.org/wiki/Metric_space).
 
+pub mod kd;
 pub mod vp;
 
 use ordered_float::OrderedFloat;
