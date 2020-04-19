@@ -1,5 +1,6 @@
 //! [Metric spaces](https://en.wikipedia.org/wiki/Metric_space).
 
+pub mod approx;
 pub mod forest;
 pub mod kd;
 pub mod soft;
