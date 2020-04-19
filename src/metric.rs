@@ -1,5 +1,7 @@
 //! [Metric spaces](https://en.wikipedia.org/wiki/Metric_space).
 
+pub mod vp;
+
 use ordered_float::OrderedFloat;
 
 use std::cmp::Ordering;
