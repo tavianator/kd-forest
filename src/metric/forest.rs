@@ -4,7 +4,7 @@ use super::kd::KdTree;
 use super::vp::VpTree;
 use super::{Metric, NearestNeighbors, Neighborhood};
 
-use std::iter::{Extend, Flatten, FromIterator};
+use std::iter::{self, Extend, Flatten, FromIterator};
 
 /// A dynamic wrapper for a static nearest neighbor search data structure.
 ///
@@ -24,23 +24,7 @@ where
 
     /// Add a new item to the forest.
     pub fn push(&mut self, item: T) {
-        let mut items = vec![item];
-
-        for slot in &mut self.0 {
-            match slot.take() {
-                // Collect the items from any trees we encounter...
-                Some(tree) => {
-                    items.extend(tree);
-                }
-                // ... and put them all in the first empty slot
-                None => {
-                    *slot = Some(items.into_iter().collect());
-                    return;
-                }
-            }
-        }
-
-        self.0.push(Some(items.into_iter().collect()));
+        self.extend(iter::once(item));
     }
 
     /// Get the number of items in the forest.
@@ -60,9 +44,32 @@ where
     U: FromIterator<T> + IntoIterator<Item = T>,
 {
     fn extend<I: IntoIterator<Item = T>>(&mut self, items: I) {
-        for item in items {
-            self.push(item);
+        let mut vec: Vec<_> = items.into_iter().collect();
+        let new_len = self.len() + vec.len();
+
+        for i in 0.. {
+            let bit = 1 << i;
+
+            if bit > new_len {
+                break;
+            }
+
+            if i >= self.0.len() {
+                self.0.push(None);
+            }
+
+            if new_len & bit == 0 {
+                if let Some(tree) = self.0[i].take() {
+                    vec.extend(tree);
+                }
+            } else if self.0[i].is_none() {
+                let offset = vec.len() - bit;
+                self.0[i] = Some(vec.drain(offset..).collect());
+            }
         }
+
+        debug_assert!(vec.is_empty());
+        debug_assert!(self.len() == new_len);
     }
 }
 
