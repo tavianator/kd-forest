@@ -1,5 +1,7 @@
 //! Colors and color spaces.
 
+pub mod source;
+
 use crate::metric::kd::{Cartesian, CartesianMetric};
 use crate::metric::{Metric, SquaredDistance};
 
