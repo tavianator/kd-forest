@@ -1,5 +1,6 @@
 //! Colors and color spaces.
 
+pub mod order;
 pub mod source;
 
 use crate::metric::kd::{Cartesian, CartesianMetric};
