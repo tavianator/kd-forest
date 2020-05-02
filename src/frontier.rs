@@ -1,6 +1,7 @@
 //! Frontiers on which to place pixels.
 
 pub mod image;
+pub mod mean;
 pub mod min;
 
 use crate::color::{ColorSpace, Rgb8};
