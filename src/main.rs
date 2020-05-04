@@ -10,7 +10,7 @@ use crate::frontier::mean::MeanFrontier;
 use crate::frontier::min::MinFrontier;
 use crate::frontier::Frontier;
 
-use clap::{self, clap_app, crate_authors, crate_name, crate_version, AppSettings};
+use clap::{self, clap_app, crate_authors, crate_name, crate_version};
 
 use image::{self, Rgba, RgbaImage};
 
@@ -109,7 +109,9 @@ impl Args {
         let args = clap_app!((crate_name!()) =>
             (version: crate_version!())
             (author: crate_authors!())
-            (setting: AppSettings::ColoredHelp)
+            (@setting ColoredHelp)
+            (@setting DeriveDisplayOrder)
+            (@setting UnifiedHelpMessage)
             (@group source =>
                 (@arg DEPTH: -b --("bit-depth") +takes_value "Use all DEPTH-bit colors")
                 (@arg INPUT: -i --input +takes_value "Use colors from the INPUT image")
