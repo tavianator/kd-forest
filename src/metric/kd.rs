@@ -1,8 +1,6 @@
 //! [k-d trees](https://en.wikipedia.org/wiki/K-d_tree).
 
-use super::{Metric, NearestNeighbors, Neighborhood};
-
-use ordered_float::OrderedFloat;
+use super::{Metric, NearestNeighbors, Neighborhood, Ordered};
 
 use std::iter::FromIterator;
 
@@ -82,7 +80,7 @@ impl<T: Cartesian> KdNode<T> {
             return;
         }
 
-        slice.sort_unstable_by_key(|n| OrderedFloat::from(n.item.coordinate(i)));
+        slice.sort_unstable_by_key(|n| Ordered(n.item.coordinate(i)));
 
         let mid = slice.len() / 2;
         slice.swap(0, mid);

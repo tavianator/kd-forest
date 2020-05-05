@@ -1,6 +1,6 @@
 //! [Vantage-point trees](https://en.wikipedia.org/wiki/Vantage-point_tree).
 
-use super::{Metric, NearestNeighbors, Neighborhood};
+use super::{Metric, NearestNeighbors, Neighborhood, Ordered};
 
 use std::iter::FromIterator;
 
@@ -29,7 +29,7 @@ impl<T: Metric> VpNode<T> {
     fn build(slice: &mut [VpNode<T>]) {
         if let Some((node, children)) = slice.split_first_mut() {
             let item = &node.item;
-            children.sort_by_cached_key(|n| item.distance(&n.item));
+            children.sort_by_cached_key(|n| Ordered(item.distance(&n.item)));
 
             let (inside, outside) = children.split_at_mut(children.len() / 2);
             if let Some(last) = inside.last() {

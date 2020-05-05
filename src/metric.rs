@@ -6,11 +6,21 @@ pub mod kd;
 pub mod soft;
 pub mod vp;
 
-use ordered_float::OrderedFloat;
-
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::iter::FromIterator;
+
+/// A wrapper that converts a partial ordering into a total one by panicking.
+#[derive(Debug, PartialEq, PartialOrd)]
+struct Ordered<T>(T);
+
+impl<T: PartialOrd> Ord for Ordered<T> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl<T: PartialEq> Eq for Ordered<T> {}
 
 /// An [order embedding](https://en.wikipedia.org/wiki/Order_embedding) for distances.
 ///
@@ -22,34 +32,18 @@ use std::iter::FromIterator;
 /// This trait exists to optimize the common case where distances can be compared more efficiently
 /// than their exact values can be computed.  For example, taking the square root can be avoided
 /// when comparing Euclidean distances (see [SquaredDistance]).
-pub trait Distance: Copy + From<f64> + Into<f64> + Ord {}
+pub trait Distance: Copy + From<f64> + Into<f64> + PartialOrd {}
 
-/// A raw numerical distance.
-#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
-pub struct RawDistance(OrderedFloat<f64>);
-
-impl From<f64> for RawDistance {
-    fn from(value: f64) -> Self {
-        Self(value.into())
-    }
-}
-
-impl From<RawDistance> for f64 {
-    fn from(value: RawDistance) -> Self {
-        value.0.into_inner()
-    }
-}
-
-impl Distance for RawDistance {}
+impl Distance for f64 {}
 
 /// A squared distance, to avoid computing square roots unless absolutely necessary.
-#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
-pub struct SquaredDistance(OrderedFloat<f64>);
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub struct SquaredDistance(f64);
 
 impl SquaredDistance {
     /// Create a SquaredDistance from an already squared value.
     pub fn from_squared(value: f64) -> Self {
-        Self(value.into())
+        Self(value)
     }
 }
 
@@ -61,7 +55,7 @@ impl From<f64> for SquaredDistance {
 
 impl From<SquaredDistance> for f64 {
     fn from(value: SquaredDistance) -> Self {
-        value.0.into_inner().sqrt()
+        value.0.sqrt()
     }
 }
 
@@ -69,8 +63,7 @@ impl Distance for SquaredDistance {}
 
 /// A [metric space](https://en.wikipedia.org/wiki/Metric_space).
 pub trait Metric<T: ?Sized = Self> {
-    /// The type used to represent distances.  Use [RawDistance] to compare the actual values
-    /// directly, or another type if comparisons can be implemented more efficiently.
+    /// The type used to represent distances.
     type Distance: Distance;
 
     /// Computes the distance between this point and another point.  This function must satisfy
@@ -153,7 +146,7 @@ impl<T, D: Distance> PartialOrd for Candidate<T, D> {
 
 impl<T, D: Distance> Ord for Candidate<T, D> {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.distance.cmp(&other.distance)
+        self.partial_cmp(other).unwrap()
     }
 }
 
