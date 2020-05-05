@@ -12,9 +12,9 @@ use crate::frontier::Frontier;
 
 use clap::{self, clap_app, crate_authors, crate_name, crate_version};
 
-use image::{self, Rgba, RgbaImage};
+use image::{self, ImageError, Rgba, RgbaImage};
 
-use rand::SeedableRng;
+use rand::{self, SeedableRng};
 use rand_pcg::Pcg64;
 
 use term;
@@ -24,6 +24,7 @@ use std::error::Error;
 use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
+use std::process::exit;
 use std::str::FromStr;
 use std::time::Instant;
 
@@ -71,18 +72,70 @@ enum ColorSpaceArg {
     Luv,
 }
 
+/// Error type for this app.
+#[derive(Debug)]
+enum AppError {
+    ArgError(clap::Error),
+    RuntimeError(Box<dyn Error>),
+}
+
+impl AppError {
+    /// Create an error for an invalid argument.
+    fn invalid_value(msg: &str) -> Self {
+        Self::ArgError(clap::Error::with_description(
+            msg,
+            clap::ErrorKind::InvalidValue,
+        ))
+    }
+
+    /// Exit the program with this error.
+    fn exit(&self) -> ! {
+        match self {
+            Self::ArgError(err) => err.exit(),
+            Self::RuntimeError(err) => {
+                eprintln!("{}", err);
+                exit(1)
+            }
+        }
+    }
+}
+
+impl From<clap::Error> for AppError {
+    fn from(err: clap::Error) -> Self {
+        Self::ArgError(err)
+    }
+}
+
+impl From<ImageError> for AppError {
+    fn from(err: ImageError) -> Self {
+        Self::RuntimeError(Box::new(err))
+    }
+}
+
+impl From<io::Error> for AppError {
+    fn from(err: io::Error) -> Self {
+        Self::RuntimeError(Box::new(err))
+    }
+}
+
+impl From<rand::Error> for AppError {
+    fn from(err: rand::Error) -> Self {
+        Self::RuntimeError(Box::new(err))
+    }
+}
+
+/// Result type for this app.
+type AppResult<T> = Result<T, AppError>;
+
 /// Parse an argument into the appropriate type.
-fn parse_arg<F>(arg: Option<&str>) -> clap::Result<Option<F>>
+fn parse_arg<F>(arg: Option<&str>) -> AppResult<Option<F>>
 where
     F: FromStr,
     F::Err: Error,
 {
     match arg.map(|s| s.parse()) {
         Some(Ok(f)) => Ok(Some(f)),
-        Some(Err(e)) => Err(clap::Error::with_description(
-            &e.to_string(),
-            clap::ErrorKind::InvalidValue,
-        )),
+        Some(Err(e)) => Err(AppError::invalid_value(&e.to_string())),
         None => Ok(None),
     }
 }
@@ -105,7 +158,7 @@ struct Args {
 }
 
 impl Args {
-    fn parse() -> clap::Result<Self> {
+    fn parse() -> AppResult<Self> {
         let args = clap_app!((crate_name!()) =>
             (version: crate_version!())
             (author: crate_authors!())
@@ -144,7 +197,13 @@ impl Args {
         let source = if let Some(input) = args.value_of("INPUT") {
             SourceArg::Image(PathBuf::from(input))
         } else {
-            SourceArg::AllRgb(parse_arg(args.value_of("DEPTH"))?.unwrap_or(24))
+            let depth = parse_arg(args.value_of("DEPTH"))?.unwrap_or(24);
+            if depth > 24 {
+                return Err(AppError::invalid_value(
+                    &format!("bit depth of {} is too deep!", depth),
+                ));
+            }
+            SourceArg::AllRgb(depth)
         };
 
         let order = if args.is_present("RANDOM") {
@@ -208,9 +267,6 @@ impl Args {
     }
 }
 
-/// main() return type.
-type MainResult = Result<(), Box<dyn Error>>;
-
 /// The kd-forest application itself.
 #[derive(Debug)]
 struct App {
@@ -238,7 +294,7 @@ impl App {
         }
     }
 
-    fn run(&mut self) -> MainResult {
+    fn run(&mut self) -> AppResult<()> {
         let colors = match self.args.source {
             SourceArg::AllRgb(depth) => {
                 self.width.get_or_insert(1u32 << ((depth + 1) / 2));
@@ -275,11 +331,17 @@ impl App {
         }
     }
 
-    fn paint<C: ColorSpace>(&mut self, colors: Vec<Rgb8>) -> MainResult {
+    fn paint<C: ColorSpace>(&mut self, colors: Vec<Rgb8>) -> AppResult<()> {
         let width = self.width.unwrap();
         let height = self.height.unwrap();
         let x0 = self.args.x0.unwrap_or(width / 2);
-        let y0 = self.args.x0.unwrap_or(height / 2);
+        let y0 = self.args.y0.unwrap_or(height / 2);
+
+        if x0 >= width || y0 >= height {
+            return Err(AppError::invalid_value(
+                &format!("Initial pixel ({}, {}) is out of bounds ({}, {})", x0, y0, width, height),
+            ));
+        }
 
         match &self.args.frontier {
             FrontierArg::Image(ref path) => {
@@ -296,7 +358,7 @@ impl App {
         }
     }
 
-    fn paint_on<F: Frontier>(&mut self, colors: Vec<Rgb8>, mut frontier: F) -> MainResult {
+    fn paint_on<F: Frontier>(&mut self, colors: Vec<Rgb8>, mut frontier: F) -> AppResult<()> {
         let width = frontier.width();
         let height = frontier.height();
         let mut output = RgbaImage::new(width, height);
@@ -393,11 +455,14 @@ impl App {
     }
 }
 
-fn main() -> MainResult {
+fn main() {
     let args = match Args::parse() {
         Ok(args) => args,
         Err(e) => e.exit(),
     };
 
-    App::new(args).run()
+    match App::new(args).run() {
+        Ok(_) => {},
+        Err(e) => e.exit(),
+    }
 }
