@@ -31,8 +31,8 @@ use std::time::Instant;
 /// The color source specified on the command line.
 #[derive(Debug, Eq, PartialEq)]
 enum SourceArg {
-    /// All RGB colors of the given bit depth.
-    AllRgb(u32),
+    /// All RGB colors of the given bit depth(s).
+    AllRgb(u32, u32, u32),
     /// Take the colors from an image.
     Image(PathBuf),
 }
@@ -197,13 +197,36 @@ impl Args {
         let source = if let Some(input) = args.value_of("INPUT") {
             SourceArg::Image(PathBuf::from(input))
         } else {
-            let depth = parse_arg(args.value_of("DEPTH"))?.unwrap_or(24);
-            if depth > 24 {
+            let arg = args.value_of("DEPTH");
+            let depths: Vec<_> = arg
+                .iter()
+                .map(|s| s.split(","))
+                .flatten()
+                .map(|n| n.parse().ok())
+                .collect();
+
+            let (r, g, b) = match depths.as_slice() {
+                [] => (8, 8, 8),
+
+                // Allocate bits from most to least perceptually important
+                [Some(d)] => ((d + 1) / 3, (d + 2) / 3, d / 3),
+
+                [Some(r), Some(g), Some(b)] => (*r, *g, *b),
+
+                _ => {
+                    return Err(AppError::invalid_value(
+                        &format!("invalid bit depth {}", arg.unwrap()),
+                    ));
+                }
+            };
+
+            if r > 8 || g > 8 || b > 8 {
                 return Err(AppError::invalid_value(
-                    &format!("bit depth of {} is too deep!", depth),
+                    &format!("bit depth of {} is too deep!", arg.unwrap()),
                 ));
             }
-            SourceArg::AllRgb(depth)
+
+            SourceArg::AllRgb(r, g, b)
         };
 
         let order = if args.is_present("RANDOM") {
@@ -296,10 +319,11 @@ impl App {
 
     fn run(&mut self) -> AppResult<()> {
         let colors = match self.args.source {
-            SourceArg::AllRgb(depth) => {
-                self.width.get_or_insert(1u32 << ((depth + 1) / 2));
-                self.height.get_or_insert(1u32 << (depth / 2));
-                self.get_colors(AllColors::new(depth as usize))
+            SourceArg::AllRgb(r, g, b) => {
+                let total = r + g + b;
+                self.width.get_or_insert(1u32 << ((total + 1) / 2));
+                self.height.get_or_insert(1u32 << (total / 2));
+                self.get_colors(AllColors::new(r, g, b))
             }
             SourceArg::Image(ref path) => {
                 let img = image::open(path)?.into_rgb();

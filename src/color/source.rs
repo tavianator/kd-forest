@@ -17,20 +17,15 @@ pub trait ColorSource {
 #[derive(Debug)]
 pub struct AllColors {
     dims: [usize; 3],
-    shifts: [usize; 3],
+    shifts: [u32; 3],
 }
 
 impl AllColors {
-    /// Create an AllColors source with the given bit depth.
-    pub fn new(bits: usize) -> Self {
-        // Allocate bits from most to least perceptually important
-        let gbits = (bits + 2) / 3;
-        let rbits = (bits + 1) / 3;
-        let bbits = bits / 3;
-
+    /// Create an AllColors source with the given bit depths.
+    pub fn new(r: u32, g: u32, b: u32) -> Self {
         Self {
-            dims: [1 << rbits, 1 << gbits, 1 << bbits],
-            shifts: [8 - rbits, 8 - gbits, 8 - bbits],
+            dims: [1 << r, 1 << g, 1 << b],
+            shifts: [8 - r, 8 - g, 8 - b],
         }
     }
 }
