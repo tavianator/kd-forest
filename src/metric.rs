@@ -368,6 +368,11 @@ impl<T> ExhaustiveSearch<T> {
     pub fn push(&mut self, item: T) {
         self.0.push(item);
     }
+
+    /// Get the size of this index.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
 }
 
 impl<T> FromIterator<T> for ExhaustiveSearch<T> {
