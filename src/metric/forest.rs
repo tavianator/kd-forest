@@ -50,6 +50,24 @@ where
         }
         len
     }
+
+    /// Check if this forest is empty.
+    pub fn is_empty(&self) -> bool {
+        if !self.buffer.is_empty() {
+            return false;
+        }
+
+        self.trees.iter().flatten().next().is_none()
+    }
+}
+
+impl<T, U> Default for Forest<U>
+where
+    U: FromIterator<T> + IntoIterator<Item = T>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T, U> Extend<T> for Forest<U>

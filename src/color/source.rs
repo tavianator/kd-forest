@@ -55,7 +55,7 @@ impl From<RgbImage> for ImageColors {
     fn from(image: RgbImage) -> Self {
         Self {
             dims: [image.width() as usize, image.height() as usize],
-            image: image,
+            image,
         }
     }
 }

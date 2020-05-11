@@ -77,8 +77,8 @@ impl ColorSpace for RgbSpace {
             }
             len += 1;
         }
-        for i in 0..3 {
-            sum[i] /= len as f64;
+        for s in &mut sum {
+            *s /= len as f64;
         }
         Self(sum)
     }
@@ -197,8 +197,8 @@ impl ColorSpace for LabSpace {
             }
             len += 1;
         }
-        for i in 0..3 {
-            sum[i] /= len as f64;
+        for s in &mut sum {
+            *s /= len as f64;
         }
         Self(sum)
     }
@@ -277,8 +277,8 @@ impl ColorSpace for LuvSpace {
             }
             len += 1;
         }
-        for i in 0..3 {
-            sum[i] /= len as f64;
+        for s in &mut sum {
+            *s /= len as f64;
         }
         Self(sum)
     }

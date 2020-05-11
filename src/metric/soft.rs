@@ -82,6 +82,16 @@ where
     }
 }
 
+impl<T, U> Default for SoftSearch<U>
+where
+    T: SoftDelete,
+    U: FromIterator<T> + IntoIterator<Item = T>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T, U: Extend<T>> Extend<T> for SoftSearch<U> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         self.0.extend(iter);

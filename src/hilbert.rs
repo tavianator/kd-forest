@@ -130,7 +130,7 @@ pub fn hilbert_point(index: usize, bits: &[u32], point: &mut [usize]) {
             l >>= 1;
         }
 
-        e = e ^ rotate_right(entry_point(w), d, dims);
+        e ^= rotate_right(entry_point(w), d, dims);
         d = (d + intra_direction(w) + 1) % dims;
     }
 }

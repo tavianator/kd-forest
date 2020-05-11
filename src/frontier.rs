@@ -23,6 +23,9 @@ pub trait Frontier {
     /// The number of pixels currently on the frontier.
     fn len(&self) -> usize;
 
+    /// Whether the frontier is empty.
+    fn is_empty(&self) -> bool;
+
     /// Place the given color on the frontier, and return its position.
     fn place(&mut self, rgb8: Rgb8) -> Option<(u32, u32)>;
 }

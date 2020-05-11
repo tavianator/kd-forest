@@ -17,8 +17,6 @@ use image::{self, ImageError, Rgba, RgbaImage};
 use rand::{self, SeedableRng};
 use rand_pcg::Pcg64;
 
-use term;
-
 use std::cmp;
 use std::error::Error;
 use std::fs;
@@ -200,7 +198,7 @@ impl Args {
             let arg = args.value_of("DEPTH");
             let depths: Vec<_> = arg
                 .iter()
-                .map(|s| s.split(","))
+                .map(|s| s.split(','))
                 .flatten()
                 .map(|n| n.parse().ok())
                 .collect();
@@ -265,10 +263,11 @@ impl Args {
 
         let animate = args.is_present("ANIMATE");
 
-        let mut path = args.value_of("PATH").unwrap();
-        if animate && args.occurrences_of("PATH") == 0 {
-            path = "kd-frames";
-        }
+        let path = if animate && args.occurrences_of("PATH") == 0 {
+            "kd-frames"
+        } else {
+            args.value_of("PATH").unwrap()
+        };
         let output = PathBuf::from(path);
 
         let seed = parse_arg(args.value_of("SEED"))?.unwrap_or(0);

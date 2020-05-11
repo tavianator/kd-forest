@@ -373,6 +373,17 @@ impl<T> ExhaustiveSearch<T> {
     pub fn len(&self) -> usize {
         self.0.len()
     }
+
+    /// Check if this index is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl<T> Default for ExhaustiveSearch<T> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T> FromIterator<T> for ExhaustiveSearch<T> {

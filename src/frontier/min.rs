@@ -136,6 +136,10 @@ impl<C: ColorSpace, R: Rng> Frontier for MinFrontier<C, R> {
         self.len - self.deleted
     }
 
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     fn place(&mut self, rgb8: Rgb8) -> Option<(u32, u32)> {
         let color = C::from(rgb8);
         let (x, y) = self
