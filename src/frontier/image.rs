@@ -1,16 +1,17 @@
 //! Frontier that targets an image.
 
-use super::{Frontier, Pixel};
+use super::{Frontier, Pixel, Target};
 
 use crate::color::{ColorSpace, Rgb8};
-use crate::metric::soft::SoftKdTree;
-use crate::metric::NearestNeighbors;
+use crate::soft::SoftKdTree;
+
+use acap::NearestNeighbors;
 
 use image::RgbImage;
 
 /// A [Frontier] that places colors on the closest pixel of a target image.
 #[derive(Debug)]
-pub struct ImageFrontier<C: ColorSpace> {
+pub struct ImageFrontier<C> {
     nodes: SoftKdTree<Pixel<C>>,
     width: u32,
     height: u32,
@@ -58,7 +59,7 @@ impl<C: ColorSpace> Frontier for ImageFrontier<C> {
     fn place(&mut self, rgb8: Rgb8) -> Option<(u32, u32)> {
         let color = C::from(rgb8);
 
-        if let Some(node) = self.nodes.nearest(&color).map(|n| n.item) {
+        if let Some(node) = self.nodes.nearest(&Target(color)).map(|n| n.item) {
             let pos = node.pos;
 
             node.delete();

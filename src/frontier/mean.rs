@@ -1,19 +1,19 @@
 //! Mean selection frontier.
 
-use super::{neighbors, Frontier, Pixel};
+use super::{neighbors, Frontier, RcPixel, Target};
 
 use crate::color::{ColorSpace, Rgb8};
-use crate::metric::soft::SoftKdForest;
-use crate::metric::NearestNeighbors;
+use crate::soft::SoftKdForest;
+
+use acap::NearestNeighbors;
 
 use std::iter;
-use std::rc::Rc;
 
 /// A pixel on a mean frontier.
 #[derive(Debug)]
 enum MeanPixel<C> {
     Empty,
-    Fillable(Rc<Pixel<C>>),
+    Fillable(RcPixel<C>),
     Filled(C),
 }
 
@@ -27,9 +27,10 @@ impl<C: ColorSpace> MeanPixel<C> {
 }
 
 /// A [Frontier] that looks at the average color of each pixel's neighbors.
+#[derive(Debug)]
 pub struct MeanFrontier<C> {
     pixels: Vec<MeanPixel<C>>,
-    forest: SoftKdForest<Rc<Pixel<C>>>,
+    forest: SoftKdForest<RcPixel<C>>,
     width: u32,
     height: u32,
     len: usize,
@@ -45,7 +46,7 @@ impl<C: ColorSpace> MeanFrontier<C> {
             pixels.push(MeanPixel::Empty);
         }
 
-        let pixel0 = Rc::new(Pixel::new(x0, y0, C::from(Rgb8::from([0, 0, 0]))));
+        let pixel0 = RcPixel::new(x0, y0, C::from(Rgb8::from([0, 0, 0])));
         let i = (x0 + y0 * width) as usize;
         pixels[i] = MeanPixel::Fillable(pixel0.clone());
 
@@ -99,7 +100,7 @@ impl<C: ColorSpace> MeanFrontier<C> {
                         .map(MeanPixel::filled_color)
                         .flatten(),
                 );
-                let pixel = Rc::new(Pixel::new(x, y, color));
+                let pixel = RcPixel::new(x, y, color);
                 self.pixels[i] = MeanPixel::Fillable(pixel.clone());
                 pixels.push(pixel);
             }
@@ -135,7 +136,7 @@ impl<C: ColorSpace> Frontier for MeanFrontier<C> {
 
     fn place(&mut self, rgb8: Rgb8) -> Option<(u32, u32)> {
         let color = C::from(rgb8);
-        let (x, y) = self.forest.nearest(&color).map(|n| n.item.pos)?;
+        let (x, y) = self.forest.nearest(&Target(color)).map(|n| n.item.pos)?;
 
         self.fill(x, y, color);
 

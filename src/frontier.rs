@@ -5,11 +5,13 @@ pub mod mean;
 pub mod min;
 
 use crate::color::{ColorSpace, Rgb8};
-use crate::metric::kd::Cartesian;
-use crate::metric::soft::SoftDelete;
-use crate::metric::Metric;
+use crate::soft::SoftDelete;
+
+use acap::coords::{Coordinates, CoordinateMetric, CoordinateProximity};
+use acap::distance::{Proximity, Metric};
 
 use std::cell::Cell;
+use std::ops::Deref;
 use std::rc::Rc;
 
 /// A frontier of pixels.
@@ -52,23 +54,39 @@ impl<C: ColorSpace> Pixel<C> {
     }
 }
 
-impl<C: Metric> Metric<Pixel<C>> for C {
+/// A reference-counted pixel, to work around the coherence rules.
+#[derive(Clone, Debug)]
+struct RcPixel<C>(Rc<Pixel<C>>);
+
+impl<C: ColorSpace> RcPixel<C> {
+    fn new(x: u32, y: u32, color: C) -> Self {
+        Self(Rc::new(Pixel::new(x, y, color)))
+    }
+}
+
+impl<C> Deref for RcPixel<C> {
+    type Target = Pixel<C>;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.deref()
+    }
+}
+
+/// A search target, to work around the coherence rules.
+#[derive(Debug)]
+struct Target<C>(C);
+
+impl<C: Proximity> Proximity<Pixel<C>> for Target<C> {
     type Distance = C::Distance;
 
     fn distance(&self, other: &Pixel<C>) -> Self::Distance {
-        self.distance(&other.color)
+        self.0.distance(&other.color)
     }
 }
 
-impl<C: Metric<[f64]>> Metric<[f64]> for Pixel<C> {
-    type Distance = C::Distance;
+impl<C: Metric> Metric<Pixel<C>> for Target<C> {}
 
-    fn distance(&self, other: &[f64]) -> Self::Distance {
-        self.color.distance(other)
-    }
-}
-
-impl<C: Metric> Metric for Pixel<C> {
+impl<C: Proximity> Proximity for Pixel<C> {
     type Distance = C::Distance;
 
     fn distance(&self, other: &Pixel<C>) -> Self::Distance {
@@ -76,13 +94,17 @@ impl<C: Metric> Metric for Pixel<C> {
     }
 }
 
-impl<C: Cartesian> Cartesian for Pixel<C> {
-    fn dimensions(&self) -> usize {
-        self.color.dimensions()
+impl<C: Metric> Metric for Pixel<C> {}
+
+impl<C: Coordinates> Coordinates for Pixel<C> {
+    type Value = C::Value;
+
+    fn dims(&self) -> usize {
+        self.color.dims()
     }
 
-    fn coordinate(&self, i: usize) -> f64 {
-        self.color.coordinate(i)
+    fn coord(&self, i: usize) -> Self::Value {
+        self.color.coord(i)
     }
 }
 
@@ -92,43 +114,63 @@ impl<C> SoftDelete for Pixel<C> {
     }
 }
 
-impl<C: Metric<[f64]>> Metric<[f64]> for Rc<Pixel<C>> {
+impl<C: Proximity> Proximity<RcPixel<C>> for Target<C> {
     type Distance = C::Distance;
 
-    fn distance(&self, other: &[f64]) -> Self::Distance {
-        (**self).distance(other)
+    fn distance(&self, other: &RcPixel<C>) -> Self::Distance {
+        self.0.distance(&other.0.color)
     }
 }
 
-impl<C: Metric> Metric<Rc<Pixel<C>>> for C {
-    type Distance = C::Distance;
+impl<C: Metric> Metric<RcPixel<C>> for Target<C> {}
 
-    fn distance(&self, other: &Rc<Pixel<C>>) -> Self::Distance {
-        self.distance(&other.color)
+impl<C: Coordinates> Coordinates for Target<C> {
+    type Value = C::Value;
+
+    fn dims(&self) -> usize {
+        self.0.dims()
+    }
+
+    fn coord(&self, i: usize) -> Self::Value {
+        self.0.coord(i)
     }
 }
 
-impl<C: Metric> Metric for Rc<Pixel<C>> {
+impl<T, C: CoordinateProximity<T>> CoordinateProximity<T> for Target<C> {
+    type Distance = C::Distance;
+
+    fn distance_to_coords(&self, coords: &[T]) -> Self::Distance {
+        self.0.distance_to_coords(coords)
+    }
+}
+
+impl<T, C: CoordinateMetric<T>> CoordinateMetric<T> for Target<C> {}
+
+impl<C: Proximity> Proximity for RcPixel<C> {
     type Distance = C::Distance;
 
     fn distance(&self, other: &Self) -> Self::Distance {
-        (**self).distance(&**other)
+        (*self.0).distance(&*other.0)
     }
 }
 
-impl<C: Cartesian> Cartesian for Rc<Pixel<C>> {
-    fn dimensions(&self) -> usize {
-        (**self).dimensions()
+impl<C: Metric> Metric for RcPixel<C> {}
+
+impl<C: Coordinates> Coordinates for RcPixel<C> {
+    type Value = C::Value;
+
+    fn dims(&self) -> usize {
+        (*self.0).dims()
     }
 
-    fn coordinate(&self, i: usize) -> f64 {
-        (**self).coordinate(i)
+    fn coord(&self, i: usize) -> Self::Value {
+        (*self.0).coord(i)
     }
 }
 
-impl<C> SoftDelete for Rc<Pixel<C>> {
+impl<C> SoftDelete for RcPixel<C> {
     fn is_deleted(&self) -> bool {
-        (**self).is_deleted()
+        (*self.0).is_deleted()
     }
 }
 

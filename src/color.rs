@@ -3,8 +3,9 @@
 pub mod order;
 pub mod source;
 
-use crate::metric::kd::{Cartesian, CartesianMetric};
-use crate::metric::{Metric, SquaredDistance};
+use acap::coords::{Coordinates, CoordinateMetric, CoordinateProximity};
+use acap::distance::{Metric, Proximity};
+use acap::euclid::{EuclideanDistance, euclidean_distance};
 
 use image::Rgb;
 
@@ -14,7 +15,11 @@ use std::ops::Index;
 pub type Rgb8 = Rgb<u8>;
 
 /// A [color space](https://en.wikipedia.org/wiki/Color_space).
-pub trait ColorSpace: Copy + From<Rgb8> + CartesianMetric {
+pub trait ColorSpace: Copy + From<Rgb8>
+    + Coordinates
+    + Metric
+    + CoordinateMetric<<Self as Coordinates>::Value, Distance = <Self as Proximity>::Distance>
+{
     /// Compute the average of the given colors.
     fn average<I: IntoIterator<Item = Self>>(colors: I) -> Self;
 }
@@ -41,31 +46,37 @@ impl From<Rgb8> for RgbSpace {
     }
 }
 
-impl Metric<[f64]> for RgbSpace {
-    type Distance = SquaredDistance;
+impl Coordinates for RgbSpace {
+    type Value = f64;
 
-    fn distance(&self, other: &[f64]) -> Self::Distance {
-        self.0.distance(other)
+    fn dims(&self) -> usize {
+        self.0.dims()
+    }
+
+    fn coord(&self, i: usize) -> f64 {
+        self.0.coord(i)
     }
 }
 
-impl Metric for RgbSpace {
-    type Distance = SquaredDistance;
+impl Proximity for RgbSpace {
+    type Distance = EuclideanDistance<f64>;
 
     fn distance(&self, other: &Self) -> Self::Distance {
-        self.0.distance(&other.0)
+        euclidean_distance(&self.0, &other.0)
     }
 }
 
-impl Cartesian for RgbSpace {
-    fn dimensions(&self) -> usize {
-        self.0.dimensions()
-    }
+impl Metric for RgbSpace {}
 
-    fn coordinate(&self, i: usize) -> f64 {
-        self.0.coordinate(i)
+impl CoordinateProximity<f64> for RgbSpace {
+    type Distance = EuclideanDistance<f64>;
+
+    fn distance_to_coords(&self, other: &[f64]) -> Self::Distance {
+        euclidean_distance(&self.0, other)
     }
 }
+
+impl CoordinateMetric<f64> for RgbSpace {}
 
 impl ColorSpace for RgbSpace {
     fn average<I: IntoIterator<Item = Self>>(colors: I) -> Self {
@@ -161,31 +172,37 @@ impl From<Rgb8> for LabSpace {
     }
 }
 
-impl Metric<[f64]> for LabSpace {
-    type Distance = SquaredDistance;
+impl Coordinates for LabSpace {
+    type Value = f64;
 
-    fn distance(&self, other: &[f64]) -> Self::Distance {
-        self.0.distance(other)
+    fn dims(&self) -> usize {
+        self.0.dims()
+    }
+
+    fn coord(&self, i: usize) -> f64 {
+        self.0.coord(i)
     }
 }
 
-impl Metric for LabSpace {
-    type Distance = SquaredDistance;
+impl Proximity for LabSpace {
+    type Distance = EuclideanDistance<f64>;
 
     fn distance(&self, other: &Self) -> Self::Distance {
-        self.0.distance(&other.0)
+        euclidean_distance(self.0, other.0)
     }
 }
 
-impl Cartesian for LabSpace {
-    fn dimensions(&self) -> usize {
-        self.0.dimensions()
-    }
+impl Metric for LabSpace {}
 
-    fn coordinate(&self, i: usize) -> f64 {
-        self.0.coordinate(i)
+impl CoordinateProximity<f64> for LabSpace {
+    type Distance = EuclideanDistance<f64>;
+
+    fn distance_to_coords(&self, other: &[f64]) -> Self::Distance {
+        euclidean_distance(&self.0, other)
     }
 }
+
+impl CoordinateMetric<f64> for LabSpace {}
 
 impl ColorSpace for LabSpace {
     fn average<I: IntoIterator<Item = Self>>(colors: I) -> Self {
@@ -241,31 +258,37 @@ impl From<Rgb8> for LuvSpace {
     }
 }
 
-impl Metric<[f64]> for LuvSpace {
-    type Distance = SquaredDistance;
+impl Coordinates for LuvSpace {
+    type Value = f64;
 
-    fn distance(&self, other: &[f64]) -> Self::Distance {
-        self.0.distance(other)
+    fn dims(&self) -> usize {
+        self.0.dims()
+    }
+
+    fn coord(&self, i: usize) -> f64 {
+        self.0.coord(i)
     }
 }
 
-impl Metric for LuvSpace {
-    type Distance = SquaredDistance;
+impl Proximity for LuvSpace {
+    type Distance = EuclideanDistance<f64>;
 
     fn distance(&self, other: &Self) -> Self::Distance {
-        self.0.distance(&other.0)
+        euclidean_distance(&self.0, &other.0)
     }
 }
 
-impl Cartesian for LuvSpace {
-    fn dimensions(&self) -> usize {
-        self.0.dimensions()
-    }
+impl Metric for LuvSpace {}
 
-    fn coordinate(&self, i: usize) -> f64 {
-        self.0.coordinate(i)
+impl CoordinateProximity<f64> for LuvSpace {
+    type Distance = EuclideanDistance<f64>;
+
+    fn distance_to_coords(&self, other: &[f64]) -> Self::Distance {
+        euclidean_distance(&self.0, other)
     }
 }
+
+impl CoordinateMetric<f64> for LuvSpace {}
 
 impl ColorSpace for LuvSpace {
     fn average<I: IntoIterator<Item = Self>>(colors: I) -> Self {

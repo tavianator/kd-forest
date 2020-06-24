@@ -1,9 +1,11 @@
 //! [Soft deletion](https://en.wiktionary.org/wiki/soft_deletion) for nearest neighbor search.
 
 use super::forest::{KdForest, VpForest};
-use super::kd::KdTree;
-use super::vp::VpTree;
-use super::{Metric, NearestNeighbors, Neighborhood};
+
+use acap::distance::Proximity;
+use acap::kd::FlatKdTree;
+use acap::vp::FlatVpTree;
+use acap::{NearestNeighbors, Neighborhood};
 
 use std::iter;
 use std::iter::FromIterator;
@@ -26,25 +28,24 @@ impl<'a, T: SoftDelete> SoftDelete for &'a T {
 #[derive(Debug)]
 struct SoftNeighborhood<N>(N);
 
-impl<T, U, N> Neighborhood<T, U> for SoftNeighborhood<N>
+impl<K, V, N> Neighborhood<K, V> for SoftNeighborhood<N>
 where
-    T: SoftDelete,
-    U: Metric<T>,
-    N: Neighborhood<T, U>,
+    V: SoftDelete,
+    K: Proximity<V>,
+    N: Neighborhood<K, V>,
 {
-    fn target(&self) -> U {
+    fn target(&self) -> K {
         self.0.target()
     }
 
-    fn contains(&self, distance: f64) -> bool {
+    fn contains<D>(&self, distance: D) -> bool
+    where
+        D: PartialOrd<K::Distance>
+    {
         self.0.contains(distance)
     }
 
-    fn contains_distance(&self, distance: U::Distance) -> bool {
-        self.0.contains_distance(distance)
-    }
-
-    fn consider(&mut self, item: T) -> U::Distance {
+    fn consider(&mut self, item: V) -> K::Distance {
         if item.is_deleted() {
             self.target().distance(&item)
         } else {
@@ -113,17 +114,17 @@ impl<T: IntoIterator> IntoIterator for SoftSearch<T> {
     }
 }
 
-impl<T, U, V> NearestNeighbors<T, U> for SoftSearch<V>
+impl<K, V, T> NearestNeighbors<K, V> for SoftSearch<T>
 where
-    T: SoftDelete,
-    U: Metric<T>,
-    V: NearestNeighbors<T, U>,
+    K: Proximity<V>,
+    V: SoftDelete,
+    T: NearestNeighbors<K, V>,
 {
-    fn search<'a, 'b, N>(&'a self, neighborhood: N) -> N
+    fn search<'k, 'v, N>(&'v self, neighborhood: N) -> N
     where
-        T: 'a,
-        U: 'b,
-        N: Neighborhood<&'a T, &'b U>,
+        K: 'k,
+        V: 'v,
+        N: Neighborhood<&'k K, &'v V>
     {
         self.0.search(SoftNeighborhood(neighborhood)).0
     }
@@ -133,39 +134,41 @@ where
 pub type SoftKdForest<T> = SoftSearch<KdForest<T>>;
 
 /// A k-d tree that supports soft deletes.
-pub type SoftKdTree<T> = SoftSearch<KdTree<T>>;
+pub type SoftKdTree<T> = SoftSearch<FlatKdTree<T>>;
 
 /// A VP forest that supports soft deletes.
 pub type SoftVpForest<T> = SoftSearch<VpForest<T>>;
 
 /// A VP tree that supports soft deletes.
-pub type SoftVpTree<T> = SoftSearch<VpTree<T>>;
+pub type SoftVpTree<T> = SoftSearch<FlatVpTree<T>>;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use crate::metric::kd::Cartesian;
-    use crate::metric::tests::Point;
-    use crate::metric::Neighbor;
+    use acap::coords::Coordinates;
+    use acap::euclid::{euclidean_distance, Euclidean, EuclideanDistance};
+    use acap::Neighbor;
+
+    type Point = Euclidean<[f32; 3]>;
 
     #[derive(Debug, PartialEq)]
     struct SoftPoint {
-        point: Point,
+        point: [f32; 3],
         deleted: bool,
     }
 
     impl SoftPoint {
-        fn new(x: f64, y: f64, z: f64) -> Self {
+        fn new(x: f32, y: f32, z: f32) -> Self {
             Self {
-                point: Point([x, y, z]),
+                point: [x, y, z],
                 deleted: false,
             }
         }
 
-        fn deleted(x: f64, y: f64, z: f64) -> Self {
+        fn deleted(x: f32, y: f32, z: f32) -> Self {
             Self {
-                point: Point([x, y, z]),
+                point: [x, y, z],
                 deleted: true,
             }
         }
@@ -177,55 +180,49 @@ mod tests {
         }
     }
 
-    impl Metric for SoftPoint {
-        type Distance = <Point as Metric>::Distance;
+    impl Proximity for SoftPoint {
+        type Distance = EuclideanDistance<f32>;
 
         fn distance(&self, other: &Self) -> Self::Distance {
-            self.point.distance(&other.point)
+            euclidean_distance(&self.point, &other.point)
         }
     }
 
-    impl Metric<[f64]> for SoftPoint {
-        type Distance = <Point as Metric>::Distance;
+    impl Coordinates for SoftPoint {
+        type Value = <Point as Coordinates>::Value;
 
-        fn distance(&self, other: &[f64]) -> Self::Distance {
-            self.point.distance(other)
+        fn dims(&self) -> usize {
+            self.point.dims()
+        }
+
+        fn coord(&self, i: usize) -> Self::Value {
+            self.point.coord(i)
         }
     }
 
-    impl Cartesian for SoftPoint {
-        fn dimensions(&self) -> usize {
-            self.point.dimensions()
-        }
-
-        fn coordinate(&self, i: usize) -> f64 {
-            self.point.coordinate(i)
-        }
-    }
-
-    impl Metric<SoftPoint> for Point {
-        type Distance = <Point as Metric>::Distance;
+    impl Proximity<SoftPoint> for Point {
+        type Distance = EuclideanDistance<f32>;
 
         fn distance(&self, other: &SoftPoint) -> Self::Distance {
-            self.distance(&other.point)
+            euclidean_distance(&self, &other.point)
         }
     }
 
     fn test_index<T>(index: &T)
     where
-        T: NearestNeighbors<SoftPoint, Point>,
+        T: NearestNeighbors<Point, SoftPoint>,
     {
-        let target = Point([0.0, 0.0, 0.0]);
+        let target = Euclidean([0.0, 0.0, 0.0]);
 
         assert_eq!(
-            index.nearest(&target),
-            Some(Neighbor::new(&SoftPoint::new(1.0, 2.0, 2.0), 3.0))
+            index.nearest(&target).expect("No nearest neighbor found"),
+            Neighbor::new(&SoftPoint::new(1.0, 2.0, 2.0), 3.0)
         );
 
         assert_eq!(index.nearest_within(&target, 2.0), None);
         assert_eq!(
-            index.nearest_within(&target, 4.0),
-            Some(Neighbor::new(&SoftPoint::new(1.0, 2.0, 2.0), 3.0))
+            index.nearest_within(&target, 4.0).expect("No nearest neighbor found within 4.0"),
+            Neighbor::new(&SoftPoint::new(1.0, 2.0, 2.0), 3.0)
         );
 
         assert_eq!(
@@ -259,7 +256,7 @@ mod tests {
         T: Extend<SoftPoint>,
         T: FromIterator<SoftPoint>,
         T: IntoIterator<Item = SoftPoint>,
-        T: NearestNeighbors<SoftPoint, Point>,
+        T: NearestNeighbors<Point, SoftPoint>,
     {
         let points = vec![
             SoftPoint::deleted(0.0, 0.0, 0.0),

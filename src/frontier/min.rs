@@ -1,19 +1,18 @@
 //! Minimum selection frontier.
 
-use super::{neighbors, Frontier, Pixel};
+use super::{neighbors, Frontier, RcPixel, Target};
 
 use crate::color::{ColorSpace, Rgb8};
-use crate::metric::soft::SoftKdForest;
-use crate::metric::NearestNeighbors;
+use crate::soft::SoftKdForest;
+
+use acap::NearestNeighbors;
 
 use rand::Rng;
-
-use std::rc::Rc;
 
 /// A pixel on a min frontier.
 #[derive(Debug)]
 struct MinPixel<C> {
-    pixel: Option<Rc<Pixel<C>>>,
+    pixel: Option<RcPixel<C>>,
     filled: bool,
 }
 
@@ -31,7 +30,7 @@ impl<C: ColorSpace> MinPixel<C> {
 pub struct MinFrontier<C, R> {
     rng: R,
     pixels: Vec<MinPixel<C>>,
-    forest: SoftKdForest<Rc<Pixel<C>>>,
+    forest: SoftKdForest<RcPixel<C>>,
     width: u32,
     height: u32,
     x0: u32,
@@ -94,7 +93,7 @@ impl<C: ColorSpace, R: Rng> MinFrontier<C, R> {
             return None;
         }
 
-        let rc = Rc::new(Pixel::new(x, y, color));
+        let rc = RcPixel::new(x, y, color);
         pixel.pixel = Some(rc.clone());
         pixel.filled = true;
 
@@ -144,7 +143,7 @@ impl<C: ColorSpace, R: Rng> Frontier for MinFrontier<C, R> {
         let color = C::from(rgb8);
         let (x, y) = self
             .forest
-            .nearest(&color)
+            .nearest(&Target(color))
             .map(|n| n.item.pos)
             .map(|(x, y)| self.free_neighbor(x, y).unwrap())
             .unwrap_or((self.x0, self.y0));

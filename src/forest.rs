@@ -1,8 +1,9 @@
 //! [Dynamization](https://en.wikipedia.org/wiki/Dynamization) for nearest neighbor search.
 
-use super::kd::KdTree;
-use super::vp::VpTree;
-use super::{Metric, NearestNeighbors, Neighborhood};
+use acap::distance::Proximity;
+use acap::kd::FlatKdTree;
+use acap::vp::FlatVpTree;
+use acap::{NearestNeighbors, Neighborhood};
 
 use std::iter::{self, Extend, FromIterator};
 
@@ -129,17 +130,17 @@ impl<T: IntoIterator> IntoIterator for Forest<T> {
     }
 }
 
-impl<T, U, V> NearestNeighbors<T, U> for Forest<V>
+impl<K, V, T> NearestNeighbors<K, V> for Forest<T>
 where
-    U: Metric<T>,
-    V: NearestNeighbors<T, U>,
-    V: IntoIterator<Item = T>,
+    K: Proximity<V>,
+    T: NearestNeighbors<K, V>,
+    T: IntoIterator<Item = V>,
 {
-    fn search<'a, 'b, N>(&'a self, mut neighborhood: N) -> N
+    fn search<'k, 'v, N>(&'v self, mut neighborhood: N) -> N
     where
-        T: 'a,
-        U: 'b,
-        N: Neighborhood<&'a T, &'b U>,
+        K: 'k,
+        V: 'v,
+        N: Neighborhood<&'k K, &'v V>
     {
         for item in &self.buffer {
             neighborhood.consider(item);
@@ -153,17 +154,121 @@ where
 }
 
 /// A forest of k-d trees.
-pub type KdForest<T> = Forest<KdTree<T>>;
+pub type KdForest<T> = Forest<FlatKdTree<T>>;
 
 /// A forest of vantage-point trees.
-pub type VpForest<T> = Forest<VpTree<T>>;
+pub type VpForest<T> = Forest<FlatVpTree<T>>;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use crate::metric::tests::test_nearest_neighbors;
-    use crate::metric::ExhaustiveSearch;
+    use acap::euclid::Euclidean;
+    use acap::exhaustive::ExhaustiveSearch;
+    use acap::{NearestNeighbors, Neighbor};
+
+    use rand::prelude::*;
+
+    type Point = Euclidean<[f32; 3]>;
+
+    fn test_empty<T, F>(from_iter: &F)
+    where
+        T: NearestNeighbors<Point>,
+        F: Fn(Vec<Point>) -> T,
+    {
+        let points = Vec::new();
+        let index = from_iter(points);
+        let target = Euclidean([0.0, 0.0, 0.0]);
+        assert_eq!(index.nearest(&target), None);
+        assert_eq!(index.nearest_within(&target, 1.0), None);
+        assert!(index.k_nearest(&target, 0).is_empty());
+        assert!(index.k_nearest(&target, 3).is_empty());
+        assert!(index.k_nearest_within(&target, 0, 1.0).is_empty());
+        assert!(index.k_nearest_within(&target, 3, 1.0).is_empty());
+    }
+
+    fn test_pythagorean<T, F>(from_iter: &F)
+    where
+        T: NearestNeighbors<Point>,
+        F: Fn(Vec<Point>) -> T,
+    {
+        let points = vec![
+            Euclidean([3.0, 4.0, 0.0]),
+            Euclidean([5.0, 0.0, 12.0]),
+            Euclidean([0.0, 8.0, 15.0]),
+            Euclidean([1.0, 2.0, 2.0]),
+            Euclidean([2.0, 3.0, 6.0]),
+            Euclidean([4.0, 4.0, 7.0]),
+        ];
+        let index = from_iter(points);
+        let target = Euclidean([0.0, 0.0, 0.0]);
+
+        assert_eq!(
+            index.nearest(&target).expect("No nearest neighbor found"),
+            Neighbor::new(&Euclidean([1.0, 2.0, 2.0]), 3.0)
+        );
+
+        assert_eq!(index.nearest_within(&target, 2.0), None);
+        assert_eq!(
+            index.nearest_within(&target, 4.0).expect("No nearest neighbor found within 4.0"),
+            Neighbor::new(&Euclidean([1.0, 2.0, 2.0]), 3.0)
+        );
+
+        assert!(index.k_nearest(&target, 0).is_empty());
+        assert_eq!(
+            index.k_nearest(&target, 3),
+            vec![
+                Neighbor::new(&Euclidean([1.0, 2.0, 2.0]), 3.0),
+                Neighbor::new(&Euclidean([3.0, 4.0, 0.0]), 5.0),
+                Neighbor::new(&Euclidean([2.0, 3.0, 6.0]), 7.0),
+            ]
+        );
+
+        assert!(index.k_nearest(&target, 0).is_empty());
+        assert_eq!(
+            index.k_nearest_within(&target, 3, 6.0),
+            vec![
+                Neighbor::new(&Euclidean([1.0, 2.0, 2.0]), 3.0),
+                Neighbor::new(&Euclidean([3.0, 4.0, 0.0]), 5.0),
+            ]
+        );
+        assert_eq!(
+            index.k_nearest_within(&target, 3, 8.0),
+            vec![
+                Neighbor::new(&Euclidean([1.0, 2.0, 2.0]), 3.0),
+                Neighbor::new(&Euclidean([3.0, 4.0, 0.0]), 5.0),
+                Neighbor::new(&Euclidean([2.0, 3.0, 6.0]), 7.0),
+            ]
+        );
+    }
+
+    fn test_random_points<T, F>(from_iter: &F)
+    where
+        T: NearestNeighbors<Point>,
+        F: Fn(Vec<Point>) -> T,
+    {
+        let mut points = Vec::new();
+        for _ in 0..255 {
+            points.push(Euclidean([random(), random(), random()]));
+        }
+        let target = Euclidean([random(), random(), random()]);
+
+        let eindex = ExhaustiveSearch::from_iter(points.clone());
+        let index = from_iter(points);
+
+        assert_eq!(index.k_nearest(&target, 3), eindex.k_nearest(&target, 3));
+    }
+
+    /// Test a [NearestNeighbors] impl.
+    fn test_nearest_neighbors<T, F>(from_iter: F)
+    where
+        T: NearestNeighbors<Point>,
+        F: Fn(Vec<Point>) -> T,
+    {
+        test_empty(&from_iter);
+        test_pythagorean(&from_iter);
+        test_random_points(&from_iter);
+    }
 
     #[test]
     fn test_exhaustive_forest() {

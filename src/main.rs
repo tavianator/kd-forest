@@ -1,7 +1,8 @@
 pub mod color;
+pub mod forest;
 pub mod frontier;
 pub mod hilbert;
-pub mod metric;
+pub mod soft;
 
 use crate::color::source::{AllColors, ColorSource, ImageColors};
 use crate::color::{order, ColorSpace, LabSpace, LuvSpace, Rgb8, RgbSpace};
