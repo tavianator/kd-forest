@@ -17,7 +17,10 @@ enum MeanPixel<C> {
     Filled(C),
 }
 
-impl<C: ColorSpace> MeanPixel<C> {
+impl<C: ColorSpace> MeanPixel<C>
+where
+    C::Value: PartialOrd<C::Distance>,
+{
     fn filled_color(&self) -> Option<C> {
         match self {
             Self::Filled(color) => Some(*color),
@@ -37,7 +40,10 @@ pub struct MeanFrontier<C> {
     deleted: usize,
 }
 
-impl<C: ColorSpace> MeanFrontier<C> {
+impl<C: ColorSpace> MeanFrontier<C>
+where
+    C::Value: PartialOrd<C::Distance>,
+{
     /// Create a MeanFrontier with the given dimensions and initial pixel location.
     pub fn new(width: u32, height: u32, x0: u32, y0: u32) -> Self {
         let size = (width as usize) * (height as usize);
@@ -117,7 +123,10 @@ impl<C: ColorSpace> MeanFrontier<C> {
     }
 }
 
-impl<C: ColorSpace> Frontier for MeanFrontier<C> {
+impl<C: ColorSpace> Frontier for MeanFrontier<C>
+where
+    C::Value: PartialOrd<C::Distance>,
+{
     fn width(&self) -> u32 {
         self.width
     }

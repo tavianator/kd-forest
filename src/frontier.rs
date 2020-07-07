@@ -4,10 +4,10 @@ pub mod image;
 pub mod mean;
 pub mod min;
 
-use crate::color::{ColorSpace, Rgb8};
+use crate::color::Rgb8;
 use crate::soft::SoftDelete;
 
-use acap::coords::{Coordinates, CoordinateMetric, CoordinateProximity};
+use acap::coords::Coordinates;
 use acap::distance::{Proximity, Metric};
 
 use std::cell::Cell;
@@ -40,7 +40,7 @@ struct Pixel<C> {
     deleted: Cell<bool>,
 }
 
-impl<C: ColorSpace> Pixel<C> {
+impl<C> Pixel<C> {
     fn new(x: u32, y: u32, color: C) -> Self {
         Self {
             pos: (x, y),
@@ -58,7 +58,7 @@ impl<C: ColorSpace> Pixel<C> {
 #[derive(Clone, Debug)]
 struct RcPixel<C>(Rc<Pixel<C>>);
 
-impl<C: ColorSpace> RcPixel<C> {
+impl<C> RcPixel<C> {
     fn new(x: u32, y: u32, color: C) -> Self {
         Self(Rc::new(Pixel::new(x, y, color)))
     }
@@ -135,16 +135,6 @@ impl<C: Coordinates> Coordinates for Target<C> {
         self.0.coord(i)
     }
 }
-
-impl<T, C: CoordinateProximity<T>> CoordinateProximity<T> for Target<C> {
-    type Distance = C::Distance;
-
-    fn distance_to_coords(&self, coords: &[T]) -> Self::Distance {
-        self.0.distance_to_coords(coords)
-    }
-}
-
-impl<T, C: CoordinateMetric<T>> CoordinateMetric<T> for Target<C> {}
 
 impl<C: Proximity> Proximity for RcPixel<C> {
     type Distance = C::Distance;

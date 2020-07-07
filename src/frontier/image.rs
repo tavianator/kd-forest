@@ -19,7 +19,10 @@ pub struct ImageFrontier<C> {
     deleted: usize,
 }
 
-impl<C: ColorSpace> ImageFrontier<C> {
+impl<C: ColorSpace> ImageFrontier<C>
+where
+    C::Value: PartialOrd<C::Distance>,
+{
     /// Create an ImageFrontier from an image.
     pub fn new(img: &RgbImage) -> Self {
         let width = img.width();
@@ -39,7 +42,10 @@ impl<C: ColorSpace> ImageFrontier<C> {
     }
 }
 
-impl<C: ColorSpace> Frontier for ImageFrontier<C> {
+impl<C: ColorSpace> Frontier for ImageFrontier<C>
+where
+    C::Value: PartialOrd<C::Distance>,
+{
     fn width(&self) -> u32 {
         self.width
     }

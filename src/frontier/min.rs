@@ -16,7 +16,10 @@ struct MinPixel<C> {
     filled: bool,
 }
 
-impl<C: ColorSpace> MinPixel<C> {
+impl<C: ColorSpace> MinPixel<C>
+where
+    C::Value: PartialOrd<C::Distance>,
+{
     fn new() -> Self {
         Self {
             pixel: None,
@@ -39,7 +42,10 @@ pub struct MinFrontier<C, R> {
     deleted: usize,
 }
 
-impl<C: ColorSpace, R: Rng> MinFrontier<C, R> {
+impl<C: ColorSpace, R: Rng> MinFrontier<C, R>
+where
+    C::Value: PartialOrd<C::Distance>,
+{
     /// Create a MinFrontier with the given dimensions and initial pixel location.
     pub fn new(rng: R, width: u32, height: u32, x0: u32, y0: u32) -> Self {
         let size = (width as usize) * (height as usize);
@@ -122,7 +128,10 @@ impl<C: ColorSpace, R: Rng> MinFrontier<C, R> {
     }
 }
 
-impl<C: ColorSpace, R: Rng> Frontier for MinFrontier<C, R> {
+impl<C: ColorSpace, R: Rng> Frontier for MinFrontier<C, R>
+where
+    C::Value: PartialOrd<C::Distance>,
+{
     fn width(&self) -> u32 {
         self.width
     }

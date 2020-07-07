@@ -3,7 +3,7 @@
 pub mod order;
 pub mod source;
 
-use acap::coords::{Coordinates, CoordinateMetric, CoordinateProximity};
+use acap::coords::Coordinates;
 use acap::distance::{Metric, Proximity};
 use acap::euclid::{EuclideanDistance, euclidean_distance};
 
@@ -15,10 +15,9 @@ use std::ops::Index;
 pub type Rgb8 = Rgb<u8>;
 
 /// A [color space](https://en.wikipedia.org/wiki/Color_space).
-pub trait ColorSpace: Copy + From<Rgb8>
-    + Coordinates
-    + Metric
-    + CoordinateMetric<<Self as Coordinates>::Value, Distance = <Self as Proximity>::Distance>
+pub trait ColorSpace: Copy + From<Rgb8> + Coordinates + Metric
+where
+    Self::Value: PartialOrd<Self::Distance>,
 {
     /// Compute the average of the given colors.
     fn average<I: IntoIterator<Item = Self>>(colors: I) -> Self;
@@ -67,16 +66,6 @@ impl Proximity for RgbSpace {
 }
 
 impl Metric for RgbSpace {}
-
-impl CoordinateProximity<f64> for RgbSpace {
-    type Distance = EuclideanDistance<f64>;
-
-    fn distance_to_coords(&self, other: &[f64]) -> Self::Distance {
-        euclidean_distance(&self.0, other)
-    }
-}
-
-impl CoordinateMetric<f64> for RgbSpace {}
 
 impl ColorSpace for RgbSpace {
     fn average<I: IntoIterator<Item = Self>>(colors: I) -> Self {
@@ -194,16 +183,6 @@ impl Proximity for LabSpace {
 
 impl Metric for LabSpace {}
 
-impl CoordinateProximity<f64> for LabSpace {
-    type Distance = EuclideanDistance<f64>;
-
-    fn distance_to_coords(&self, other: &[f64]) -> Self::Distance {
-        euclidean_distance(&self.0, other)
-    }
-}
-
-impl CoordinateMetric<f64> for LabSpace {}
-
 impl ColorSpace for LabSpace {
     fn average<I: IntoIterator<Item = Self>>(colors: I) -> Self {
         let mut sum = [0.0, 0.0, 0.0];
@@ -279,16 +258,6 @@ impl Proximity for LuvSpace {
 }
 
 impl Metric for LuvSpace {}
-
-impl CoordinateProximity<f64> for LuvSpace {
-    type Distance = EuclideanDistance<f64>;
-
-    fn distance_to_coords(&self, other: &[f64]) -> Self::Distance {
-        euclidean_distance(&self.0, other)
-    }
-}
-
-impl CoordinateMetric<f64> for LuvSpace {}
 
 impl ColorSpace for LuvSpace {
     fn average<I: IntoIterator<Item = Self>>(colors: I) -> Self {

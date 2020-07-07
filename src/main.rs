@@ -355,7 +355,10 @@ impl App {
         }
     }
 
-    fn paint<C: ColorSpace>(&mut self, colors: Vec<Rgb8>) -> AppResult<()> {
+    fn paint<C: ColorSpace>(&mut self, colors: Vec<Rgb8>) -> AppResult<()>
+    where
+        C::Value: PartialOrd<C::Distance>,
+    {
         let width = self.width.unwrap();
         let height = self.height.unwrap();
         let x0 = self.args.x0.unwrap_or(width / 2);
