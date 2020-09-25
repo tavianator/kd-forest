@@ -452,7 +452,7 @@ impl App {
 
         if rate >= 10_000.0 {
             rate /= 1_000.0;
-            unit = "Kpx/s";
+            unit = "kpx/s";
         }
 
         if rate >= 10_000.0 {
