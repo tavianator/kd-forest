@@ -5,7 +5,7 @@ use acap::kd::FlatKdTree;
 use acap::knn::{NearestNeighbors, Neighborhood};
 use acap::vp::FlatVpTree;
 
-use std::iter::{self, Extend, FromIterator};
+use std::iter;
 
 /// The number of bits dedicated to the flat buffer.
 const BUFFER_BITS: usize = 6;

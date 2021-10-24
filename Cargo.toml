@@ -2,7 +2,7 @@
 name = "kd-forest"
 version = "2.0.0"
 authors = ["Tavian Barnes <tavianator@tavianator.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 acap = "0.3.0"

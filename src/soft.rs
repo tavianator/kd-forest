@@ -8,7 +8,6 @@ use acap::knn::{NearestNeighbors, Neighborhood};
 use acap::vp::FlatVpTree;
 
 use std::iter;
-use std::iter::FromIterator;
 use std::mem;
 
 /// A trait for objects that can be soft-deleted.
