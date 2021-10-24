@@ -2,8 +2,8 @@
 
 use acap::distance::Proximity;
 use acap::kd::FlatKdTree;
+use acap::knn::{NearestNeighbors, Neighborhood};
 use acap::vp::FlatVpTree;
-use acap::{NearestNeighbors, Neighborhood};
 
 use std::iter::{self, Extend, FromIterator};
 
@@ -165,7 +165,7 @@ mod tests {
 
     use acap::euclid::Euclidean;
     use acap::exhaustive::ExhaustiveSearch;
-    use acap::{NearestNeighbors, Neighbor};
+    use acap::knn::{NearestNeighbors, Neighbor};
 
     use rand::prelude::*;
 

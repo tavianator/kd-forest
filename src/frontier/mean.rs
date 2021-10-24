@@ -5,7 +5,7 @@ use super::{neighbors, Frontier, RcPixel, Target};
 use crate::color::{ColorSpace, Rgb8};
 use crate::soft::SoftKdForest;
 
-use acap::NearestNeighbors;
+use acap::knn::NearestNeighbors;
 
 use std::iter;
 

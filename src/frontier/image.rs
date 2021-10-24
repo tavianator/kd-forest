@@ -5,7 +5,7 @@ use super::{Frontier, Pixel, Target};
 use crate::color::{ColorSpace, Rgb8};
 use crate::soft::SoftKdTree;
 
-use acap::NearestNeighbors;
+use acap::knn::NearestNeighbors;
 
 use image::RgbImage;
 

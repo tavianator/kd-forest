@@ -326,7 +326,7 @@ impl App {
                 self.get_colors(AllColors::new(r, g, b))
             }
             SourceArg::Image(ref path) => {
-                let img = image::open(path)?.into_rgb();
+                let img = image::open(path)?.into_rgb8();
                 self.width.get_or_insert(img.width());
                 self.height.get_or_insert(img.height());
                 self.get_colors(ImageColors::from(img))
@@ -372,7 +372,7 @@ impl App {
 
         match &self.args.frontier {
             FrontierArg::Image(ref path) => {
-                let img = image::open(path)?.into_rgb();
+                let img = image::open(path)?.into_rgb8();
                 self.paint_on(colors, ImageFrontier::<C>::new(&img))
             }
             FrontierArg::Min => {

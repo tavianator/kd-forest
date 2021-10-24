@@ -4,8 +4,8 @@ use super::forest::{KdForest, VpForest};
 
 use acap::distance::Proximity;
 use acap::kd::FlatKdTree;
+use acap::knn::{NearestNeighbors, Neighborhood};
 use acap::vp::FlatVpTree;
-use acap::{NearestNeighbors, Neighborhood};
 
 use std::iter;
 use std::iter::FromIterator;
@@ -148,7 +148,7 @@ mod tests {
 
     use acap::coords::Coordinates;
     use acap::euclid::{euclidean_distance, Euclidean, EuclideanDistance};
-    use acap::Neighbor;
+    use acap::knn::Neighbor;
 
     type Point = Euclidean<[f32; 3]>;
 
