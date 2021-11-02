@@ -13,15 +13,15 @@ use crate::frontier::Frontier;
 
 use clap::{self, clap_app, crate_authors, crate_name, crate_version};
 
-use image::{self, ImageError, Rgba, RgbaImage};
+use image::{self, ColorType, ImageError, Rgba, RgbaImage};
+use image::png::PngEncoder;
 
 use rand::{self, SeedableRng};
 use rand_pcg::Pcg64;
 
 use std::cmp;
 use std::error::Error;
-use std::fs;
-use std::io::{self, Write};
+use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
 use std::process::exit;
 use std::str::FromStr;
@@ -264,12 +264,9 @@ impl Args {
 
         let animate = args.is_present("ANIMATE");
 
-        let path = if animate && args.occurrences_of("PATH") == 0 {
-            "kd-frames"
-        } else {
-            args.value_of("PATH").unwrap()
-        };
-        let output = PathBuf::from(path);
+        let output = args.value_of("PATH")
+            .map(PathBuf::from)
+            .unwrap();
 
         let seed = parse_arg(args.value_of("SEED"))?.unwrap_or(0);
 
@@ -385,17 +382,31 @@ impl App {
         }
     }
 
+    fn write_frame(image: &RgbaImage) -> AppResult<()> {
+        if atty::is(atty::Stream::Stdout) {
+            return Err(AppError::invalid_value(
+                "Not writing images to your terminal, please pipe the output somewhere"
+            ));
+        }
+
+        let stdout = io::stdout();
+        let writer = BufWriter::new(stdout.lock());
+        let encoder = PngEncoder::new(writer);
+        encoder.encode(image, image.width(), image.height(), ColorType::Rgba8)?;
+
+        Ok(())
+    }
+
     fn paint_on<F: Frontier>(&mut self, colors: Vec<Rgb8>, mut frontier: F) -> AppResult<()> {
         let width = frontier.width();
         let height = frontier.height();
         let mut output = RgbaImage::new(width, height);
 
         let size = cmp::min((width * height) as usize, colors.len());
-        println!("Generating a {}x{} image ({} pixels)", width, height, size);
+        eprintln!("Generating a {}x{} image ({} pixels)", width, height, size);
 
         if self.args.animate {
-            fs::create_dir_all(&self.args.output)?;
-            output.save(&self.args.output.join("0000.png"))?;
+            Self::write_frame(&output)?;
         }
 
         let interval = cmp::max(width, height) as usize;
@@ -416,8 +427,7 @@ impl App {
 
             if (i + 1) % interval == 0 {
                 if self.args.animate {
-                    let frame = (i + 1) / interval;
-                    output.save(&self.args.output.join(format!("{:04}.png", frame)))?;
+                    Self::write_frame(&output)?;
                 }
 
                 if i + 1 < size {
@@ -427,8 +437,7 @@ impl App {
         }
 
         if self.args.animate && size % interval != 0 {
-            let frame = size / interval;
-            output.save(&self.args.output.join(format!("{:04}.png", frame)))?;
+            Self::write_frame(&output)?;
         }
 
         self.print_progress(size, size, max_frontier)?;

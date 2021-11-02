@@ -256,6 +256,7 @@ name = "kd-forest"
 version = "2.0.0"
 dependencies = [
  "acap",
+ "atty",
  "clap",
  "image",
  "rand",
