@@ -5,7 +5,7 @@ pub mod hilbert;
 pub mod soft;
 
 use crate::color::source::{AllColors, ColorSource, ImageColors};
-use crate::color::{order, ColorSpace, LabSpace, LuvSpace, Rgb8, RgbSpace};
+use crate::color::{order, ColorSpace, LabSpace, LuvSpace, OklabSpace, Rgb8, RgbSpace};
 use crate::frontier::image::ImageFrontier;
 use crate::frontier::mean::MeanFrontier;
 use crate::frontier::min::MinFrontier;
@@ -69,6 +69,8 @@ enum ColorSpaceArg {
     Lab,
     /// CIE L*u*v* space.
     Luv,
+    /// Oklab space.
+    Oklab,
 }
 
 /// Error type for this app.
@@ -182,7 +184,7 @@ impl Args {
                 (@arg MODE: -l --selection +takes_value possible_value[min mean] "Specify the selection mode")
                 (@arg TARGET: -g --target +takes_value "Place colors on the closest pixels of the TARGET image")
             )
-            (@arg SPACE: -c --("color-space") default_value("Lab") possible_value[RGB Lab Luv] "Use the given color space")
+            (@arg SPACE: -c --("color-space") default_value("Lab") possible_value[RGB Lab Luv Oklab] "Use the given color space")
             (@arg WIDTH: -w --width +takes_value "The width of the generated image")
             (@arg HEIGHT: -h --height +takes_value "The height of the generated image")
             (@arg X: -x +takes_value "The x coordinate of the first pixel")
@@ -254,6 +256,7 @@ impl Args {
             "RGB" => ColorSpaceArg::Rgb,
             "Lab" => ColorSpaceArg::Lab,
             "Luv" => ColorSpaceArg::Luv,
+            "Oklab" => ColorSpaceArg::Oklab,
             _ => unreachable!(),
         };
 
@@ -334,6 +337,7 @@ impl App {
             ColorSpaceArg::Rgb => self.paint::<RgbSpace>(colors),
             ColorSpaceArg::Lab => self.paint::<LabSpace>(colors),
             ColorSpaceArg::Luv => self.paint::<LuvSpace>(colors),
+            ColorSpaceArg::Oklab => self.paint::<OklabSpace>(colors),
         }
     }
 

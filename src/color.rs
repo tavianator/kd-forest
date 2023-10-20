@@ -275,3 +275,78 @@ impl ColorSpace for LuvSpace {
         Self(sum)
     }
 }
+
+/// [Oklab](https://bottosson.github.io/posts/oklab/) space.
+#[derive(Clone, Copy, Debug)]
+pub struct OklabSpace([f64; 3]);
+
+impl Index<usize> for OklabSpace {
+    type Output = f64;
+
+    fn index(&self, i: usize) -> &f64 {
+        &self.0[i]
+    }
+}
+
+impl From<Rgb8> for OklabSpace {
+    fn from(rgb8: Rgb8) -> Self {
+        let rgb = RgbSpace::from(rgb8);
+
+        let r = srgb_inv_gamma(rgb[0]);
+        let g = srgb_inv_gamma(rgb[1]);
+        let b = srgb_inv_gamma(rgb[2]);
+
+        let l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b;
+        let m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b;
+        let s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b;
+
+        let l = l.cbrt();
+        let m = m.cbrt();
+        let s = s.cbrt();
+
+        Self([
+            0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+            1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+            0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s,
+        ])
+    }
+}
+
+impl Coordinates for OklabSpace {
+    type Value = f64;
+
+    fn dims(&self) -> usize {
+        self.0.dims()
+    }
+
+    fn coord(&self, i: usize) -> f64 {
+        self.0.coord(i)
+    }
+}
+
+impl Proximity for OklabSpace {
+    type Distance = EuclideanDistance<f64>;
+
+    fn distance(&self, other: &Self) -> Self::Distance {
+        euclidean_distance(&self.0, &other.0)
+    }
+}
+
+impl Metric for OklabSpace {}
+
+impl ColorSpace for OklabSpace {
+    fn average<I: IntoIterator<Item = Self>>(colors: I) -> Self {
+        let mut sum = [0.0, 0.0, 0.0];
+        let mut len: usize = 0;
+        for color in colors.into_iter() {
+            for i in 0..3 {
+                sum[i] += color[i];
+            }
+            len += 1;
+        }
+        for s in &mut sum {
+            *s /= len as f64;
+        }
+        Self(sum)
+    }
+}
