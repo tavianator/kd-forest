@@ -21,7 +21,7 @@ use rand_pcg::Pcg64;
 
 use std::cmp;
 use std::error::Error;
-use std::io::{self, BufWriter, Write};
+use std::io::{self, BufWriter, IsTerminal, Write};
 use std::path::PathBuf;
 use std::process::exit;
 use std::str::FromStr;
@@ -383,13 +383,13 @@ impl App {
     }
 
     fn write_frame(image: &RgbaImage) -> AppResult<()> {
-        if atty::is(atty::Stream::Stdout) {
+        let stdout = io::stdout();
+        if stdout.is_terminal() {
             return Err(AppError::invalid_value(
                 "Not writing images to your terminal, please pipe the output somewhere"
             ));
         }
 
-        let stdout = io::stdout();
         let writer = BufWriter::new(stdout.lock());
         let encoder = PngEncoder::new_with_quality(writer, CompressionType::Rle, FilterType::NoFilter);
         encoder.encode(image, image.width(), image.height(), ColorType::Rgba8)?;

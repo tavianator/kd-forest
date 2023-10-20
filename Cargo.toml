@@ -6,9 +6,8 @@ edition = "2021"
 
 [dependencies]
 acap = "0.3.0"
-atty = "0.2.14"
-clap = "2.33.3"
+clap = "2.34.0"
 image = "0.23.14"
-rand = "0.8.4"
+rand = "0.8.5"
 rand_pcg = "0.3.1"
 term = "0.7.0"
