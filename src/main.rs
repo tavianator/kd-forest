@@ -13,8 +13,8 @@ use crate::frontier::Frontier;
 
 use clap::{self, clap_app, crate_authors, crate_name, crate_version};
 
-use image::{self, ColorType, ImageError, Rgba, RgbaImage};
-use image::png::{CompressionType, FilterType, PngEncoder};
+use image::{self, ColorType, ImageEncoder, ImageError, Rgba, RgbaImage};
+use image::codecs::png::{CompressionType, FilterType, PngEncoder};
 
 use rand::{self, SeedableRng};
 use rand_pcg::Pcg64;
@@ -395,8 +395,8 @@ impl App {
         }
 
         let writer = BufWriter::new(stdout.lock());
-        let encoder = PngEncoder::new_with_quality(writer, CompressionType::Rle, FilterType::NoFilter);
-        encoder.encode(image, image.width(), image.height(), ColorType::Rgba8)?;
+        let encoder = PngEncoder::new_with_quality(writer, CompressionType::Fast, FilterType::NoFilter);
+        encoder.write_image(image, image.width(), image.height(), ColorType::Rgba8)?;
 
         Ok(())
     }

@@ -7,7 +7,7 @@ edition = "2021"
 [dependencies]
 acap = "0.3.0"
 clap = "2.34.0"
-image = "0.23.14"
+image = "0.24.7"
 rand = "0.8.5"
 rand_pcg = "0.3.1"
 term = "0.7.0"
