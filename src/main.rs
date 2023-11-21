@@ -11,7 +11,8 @@ use crate::frontier::mean::MeanFrontier;
 use crate::frontier::min::MinFrontier;
 use crate::frontier::Frontier;
 
-use clap::{self, clap_app, crate_authors, crate_name, crate_version};
+use clap::{ArgAction, CommandFactory, Parser, ValueEnum};
+use clap::error::ErrorKind;
 
 use image::{self, ColorType, ImageEncoder, ImageError, Rgba, RgbaImage};
 use image::codecs::png::{CompressionType, FilterType, PngEncoder};
@@ -24,7 +25,6 @@ use std::error::Error;
 use std::io::{self, BufWriter, IsTerminal, Write};
 use std::path::PathBuf;
 use std::process::exit;
-use std::str::FromStr;
 use std::time::Instant;
 
 /// The color source specified on the command line.
@@ -50,27 +50,105 @@ enum OrderArg {
 }
 
 /// The frontier implementation.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, ValueEnum)]
 enum FrontierArg {
     /// Pick a neighbor of the closest pixel so far.
     Min,
     /// Pick the pixel with the closest mean color of all its neighbors.
     Mean,
     /// Target the closest pixel on an image.
+    #[value(skip)]
     Image(PathBuf),
 }
 
 /// The color space to operate in.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 enum ColorSpaceArg {
     /// sRGB space.
+    #[value(name = "RGB")]
     Rgb,
     /// CIE L*a*b* space.
+    #[value(name = "Lab")]
     Lab,
     /// CIE L*u*v* space.
+    #[value(name = "Luv")]
     Luv,
     /// Oklab space.
+    #[value(name = "Oklab")]
     Oklab,
+}
+
+/// k-d forests.
+#[derive(Debug, Parser)]
+#[command(author, version, about, disable_help_flag = true)]
+struct Cli {
+    /// Use all <DEPTH>-bit colors.
+    #[arg(short, long, group = "source", value_name = "DEPTH", default_value = "24")]
+    bit_depth: Option<String>,
+    /// use colors from the <INPUT> image.
+    #[arg(short, long, group = "source", value_name = "INPUT")]
+    input: Option<PathBuf>,
+
+    /// Sort colors by hue [default].
+    #[arg(short = 's', long, group = "order", default_value_t = true)]
+    hue_sort: bool,
+    /// Randomize colors.
+    #[arg(short, long, group = "order")]
+    random: bool,
+    /// Place colors in Morton order (Z-order).
+    #[arg(short = 'M', long, group = "order")]
+    morton: bool,
+    /// Place colors in Hilbert curve order
+    #[arg(short = 'H', long, group = "order")]
+    hilbert: bool,
+
+    /// Reduce artifacts by iterating through the colors in multiple stripes [default].
+    #[arg(short = 't', long, group = "stripe?", default_value_t = true)]
+    stripe: bool,
+    /// Don't stripe.
+    #[arg(short = 'T', long, group = "stripe?")]
+    no_stripe: bool,
+
+    /// Specify the selection mode.
+    #[arg(short = 'l', long, group = "frontier", value_name = "MODE", default_value = "min")]
+    selection: FrontierArg,
+    /// Place colors on the closest pixels of the <TARGET> image.
+    #[arg(short = 'g', long, group = "frontier", value_name = "TARGET")]
+    target: Option<PathBuf>,
+
+    /// Use the given color space.
+    #[arg(short, long, value_name = "SPACE", default_value = "Lab")]
+    color_space: ColorSpaceArg,
+
+    /// The width of the generated image.
+    #[arg(short, long)]
+    width: Option<u32>,
+    /// The height of the generated image.
+    #[arg(short, long)]
+    height: Option<u32>,
+
+    /// The x coordinate of the first pixel.
+    #[arg(short, value_name = "X")]
+    x0: Option<u32>,
+    /// The y coordinate of the first pixel.
+    #[arg(short, value_name = "Y")]
+    y0: Option<u32>,
+
+    /// Generate frames of an animation.
+    #[arg(short, long)]
+    animate: bool,
+
+    /// Save the image to <PATH>.
+    #[arg(short, long, value_name = "PATH", default_value = "kd-forest.png")]
+    output: PathBuf,
+
+    /// Seed the random number generator.
+    #[arg(short = 'e', long, default_value_t = 0)]
+    seed: u64,
+
+    /// Print help.
+    #[arg(short = '?', long, action = ArgAction::Help)]
+    help: (),
 }
 
 /// Error type for this app.
@@ -83,10 +161,7 @@ enum AppError {
 impl AppError {
     /// Create an error for an invalid argument.
     fn invalid_value(msg: &str) -> Self {
-        Self::ArgError(clap::Error::with_description(
-            msg,
-            clap::ErrorKind::InvalidValue,
-        ))
+        Self::ArgError(Cli::command().error(ErrorKind::InvalidValue, msg))
     }
 
     /// Exit the program with this error.
@@ -128,19 +203,6 @@ impl From<rand::Error> for AppError {
 /// Result type for this app.
 type AppResult<T> = Result<T, AppError>;
 
-/// Parse an argument into the appropriate type.
-fn parse_arg<F>(arg: Option<&str>) -> AppResult<Option<F>>
-where
-    F: FromStr,
-    F::Err: Error,
-{
-    match arg.map(|s| s.parse()) {
-        Some(Ok(f)) => Ok(Some(f)),
-        Some(Err(e)) => Err(AppError::invalid_value(&e.to_string())),
-        None => Ok(None),
-    }
-}
-
 /// The parsed command line arguments.
 #[derive(Debug)]
 struct Args {
@@ -160,49 +222,14 @@ struct Args {
 
 impl Args {
     fn parse() -> AppResult<Self> {
-        let args = clap_app!((crate_name!()) =>
-            (version: crate_version!())
-            (author: crate_authors!())
-            (@setting ColoredHelp)
-            (@setting DeriveDisplayOrder)
-            (@setting UnifiedHelpMessage)
-            (@group source =>
-                (@arg DEPTH: -b --("bit-depth") +takes_value "Use all DEPTH-bit colors")
-                (@arg INPUT: -i --input +takes_value "Use colors from the INPUT image")
-            )
-            (@group order =>
-                (@arg HUE: -s --hue-sort "Sort colors by hue [default]")
-                (@arg RANDOM: -r --random "Randomize colors")
-                (@arg MORTON: -M --morton "Place colors in Morton order (Z-order)")
-                (@arg HILBERT: -H --hilbert "Place colors in Hilbert curve order")
-            )
-            (@group stripe =>
-                (@arg STRIPE: -t --stripe "Reduce artifacts by iterating through the colors in multiple stripes [default]")
-                (@arg NOSTRIPE: -T --("no-stripe") "Don't stripe")
-            )
-            (@group frontier =>
-                (@arg MODE: -l --selection +takes_value possible_value[min mean] "Specify the selection mode")
-                (@arg TARGET: -g --target +takes_value "Place colors on the closest pixels of the TARGET image")
-            )
-            (@arg SPACE: -c --("color-space") default_value("Lab") possible_value[RGB Lab Luv Oklab] "Use the given color space")
-            (@arg WIDTH: -w --width +takes_value "The width of the generated image")
-            (@arg HEIGHT: -h --height +takes_value "The height of the generated image")
-            (@arg X: -x +takes_value "The x coordinate of the first pixel")
-            (@arg Y: -y +takes_value "The y coordinate of the first pixel")
-            (@arg ANIMATE: -a --animate "Generate frames of an animation")
-            (@arg PATH: -o --output default_value("kd-forest.png") "Save the image to PATH")
-            (@arg SEED: -e --seed default_value("0") "Seed the random number generator")
-        )
-        .get_matches_safe()?;
+        let args = Cli::try_parse()?;
 
-        let source = if let Some(input) = args.value_of("INPUT") {
-            SourceArg::Image(PathBuf::from(input))
+        let source = if let Some(input) = args.input {
+            SourceArg::Image(input)
         } else {
-            let arg = args.value_of("DEPTH");
+            let arg = args.bit_depth.unwrap();
             let depths: Vec<_> = arg
-                .iter()
-                .map(|s| s.split(','))
-                .flatten()
+                .split(',')
                 .map(|n| n.parse().ok())
                 .collect();
 
@@ -216,62 +243,50 @@ impl Args {
 
                 _ => {
                     return Err(AppError::invalid_value(
-                        &format!("invalid bit depth {}", arg.unwrap()),
+                        &format!("invalid bit depth {}", arg),
                     ));
                 }
             };
 
             if r > 8 || g > 8 || b > 8 {
                 return Err(AppError::invalid_value(
-                    &format!("bit depth of {} is too deep!", arg.unwrap()),
+                    &format!("bit depth of {} is too deep!", arg),
                 ));
             }
 
             SourceArg::AllRgb(r, g, b)
         };
 
-        let order = if args.is_present("RANDOM") {
+        let order = if args.random {
             OrderArg::Random
-        } else if args.is_present("MORTON") {
+        } else if args.morton {
             OrderArg::Morton
-        } else if args.is_present("HILBERT") {
+        } else if args.hilbert {
             OrderArg::Hilbert
         } else {
             OrderArg::HueSort
         };
 
-        let stripe = !args.is_present("NOSTRIPE") && order != OrderArg::Random;
+        let stripe = !args.no_stripe && order != OrderArg::Random;
 
-        let frontier = if let Some(target) = args.value_of("TARGET") {
-            FrontierArg::Image(PathBuf::from(target))
+        let frontier = if let Some(target) = args.target {
+            FrontierArg::Image(target)
         } else {
-            match args.value_of("MODE") {
-                Some("min") | None => FrontierArg::Min,
-                Some("mean") => FrontierArg::Mean,
-                _ => unreachable!(),
-            }
+            args.selection
         };
 
-        let space = match args.value_of("SPACE").unwrap() {
-            "RGB" => ColorSpaceArg::Rgb,
-            "Lab" => ColorSpaceArg::Lab,
-            "Luv" => ColorSpaceArg::Luv,
-            "Oklab" => ColorSpaceArg::Oklab,
-            _ => unreachable!(),
-        };
+        let space = args.color_space;
 
-        let width = parse_arg(args.value_of("WIDTH"))?;
-        let height = parse_arg(args.value_of("HEIGHT"))?;
-        let x0 = parse_arg(args.value_of("X"))?;
-        let y0 = parse_arg(args.value_of("Y"))?;
+        let width = args.width;
+        let height = args.height;
+        let x0 = args.x0;
+        let y0 = args.y0;
 
-        let animate = args.is_present("ANIMATE");
+        let animate = args.animate;
 
-        let output = args.value_of("PATH")
-            .map(PathBuf::from)
-            .unwrap();
+        let output = args.output;
 
-        let seed = parse_arg(args.value_of("SEED"))?.unwrap_or(0);
+        let seed = args.seed;
 
         Ok(Self {
             source,
