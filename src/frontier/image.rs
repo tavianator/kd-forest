@@ -3,7 +3,7 @@
 use super::{Frontier, Pixel, Target};
 
 use crate::color::{ColorSpace, Rgb8};
-use crate::soft::SoftKdTree;
+use crate::forest::KdForest;
 
 use acap::knn::NearestNeighbors;
 
@@ -12,7 +12,7 @@ use image::RgbImage;
 /// A [Frontier] that places colors on the closest pixel of a target image.
 #[derive(Debug)]
 pub struct ImageFrontier<C> {
-    nodes: SoftKdTree<Pixel<C>>,
+    nodes: KdForest<Pixel<C>>,
     width: u32,
     height: u32,
     len: usize,

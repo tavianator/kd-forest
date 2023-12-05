@@ -3,7 +3,7 @@
 use super::{neighbors, Frontier, RcPixel, Target};
 
 use crate::color::{ColorSpace, Rgb8};
-use crate::soft::SoftKdForest;
+use crate::forest::KdForest;
 
 use acap::knn::NearestNeighbors;
 
@@ -33,7 +33,7 @@ where
 pub struct MinFrontier<C, R> {
     rng: R,
     pixels: Vec<MinPixel<C>>,
-    forest: SoftKdForest<RcPixel<C>>,
+    forest: KdForest<RcPixel<C>>,
     width: u32,
     height: u32,
     x0: u32,
@@ -57,7 +57,7 @@ where
         Self {
             rng,
             pixels,
-            forest: SoftKdForest::new(),
+            forest: KdForest::new(),
             width,
             height,
             x0,
@@ -116,12 +116,6 @@ where
                     self.deleted += 1;
                 }
             }
-        }
-
-        if 2 * self.deleted >= self.len {
-            self.forest.rebuild();
-            self.len -= self.deleted;
-            self.deleted = 0;
         }
 
         Some((x, y))

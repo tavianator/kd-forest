@@ -3,7 +3,7 @@
 use super::{neighbors, Frontier, RcPixel, Target};
 
 use crate::color::{ColorSpace, Rgb8};
-use crate::soft::SoftKdForest;
+use crate::forest::KdForest;
 
 use acap::knn::NearestNeighbors;
 
@@ -33,7 +33,7 @@ where
 #[derive(Debug)]
 pub struct MeanFrontier<C> {
     pixels: Vec<MeanPixel<C>>,
-    forest: SoftKdForest<RcPixel<C>>,
+    forest: KdForest<RcPixel<C>>,
     width: u32,
     height: u32,
     len: usize,
@@ -114,12 +114,6 @@ where
 
         self.len += pixels.len();
         self.forest.extend(pixels);
-
-        if 2 * self.deleted >= self.len {
-            self.forest.rebuild();
-            self.len -= self.deleted;
-            self.deleted = 0;
-        }
     }
 }
 

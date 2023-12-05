@@ -5,7 +5,7 @@ pub mod mean;
 pub mod min;
 
 use crate::color::Rgb8;
-use crate::soft::SoftDelete;
+use crate::forest::SoftDelete;
 
 use acap::coords::Coordinates;
 use acap::distance::{Proximity, Metric};
