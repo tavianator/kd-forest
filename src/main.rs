@@ -13,7 +13,7 @@ use crate::frontier::Frontier;
 use clap::{ArgAction, CommandFactory, Parser, ValueEnum};
 use clap::error::ErrorKind;
 
-use image::{self, ColorType, ImageEncoder, ImageError, Rgba, RgbaImage};
+use image::{self, ExtendedColorType, ImageEncoder, ImageError, Rgba, RgbaImage};
 use image::codecs::png::{CompressionType, FilterType, PngEncoder};
 
 use rand::{self, SeedableRng};
@@ -189,12 +189,6 @@ impl From<ImageError> for AppError {
 
 impl From<io::Error> for AppError {
     fn from(err: io::Error) -> Self {
-        Self::RuntimeError(Box::new(err))
-    }
-}
-
-impl From<rand::Error> for AppError {
-    fn from(err: rand::Error) -> Self {
         Self::RuntimeError(Box::new(err))
     }
 }
@@ -391,7 +385,7 @@ impl App {
                 self.paint_on(colors, ImageFrontier::<C>::new(&img))
             }
             FrontierArg::Min => {
-                let rng = Pcg64::from_rng(&mut self.rng)?;
+                let rng = Pcg64::from_rng(&mut self.rng);
                 self.paint_on(colors, MinFrontier::<C, _>::new(rng, width, height, x0, y0))
             }
             FrontierArg::Mean => {
@@ -410,7 +404,7 @@ impl App {
 
         let writer = BufWriter::new(stdout.lock());
         let encoder = PngEncoder::new_with_quality(writer, CompressionType::Fast, FilterType::NoFilter);
-        encoder.write_image(image, image.width(), image.height(), ColorType::Rgba8)?;
+        encoder.write_image(image, image.width(), image.height(), ExtendedColorType::Rgba8)?;
 
         Ok(())
     }

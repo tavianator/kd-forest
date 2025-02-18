@@ -76,9 +76,9 @@ where
 
     fn free_neighbor(&mut self, x: u32, y: u32) -> Option<(u32, u32)> {
         // Pick a pseudo-random neighbor
-        let offset: usize = self.rng.gen();
-
         let neighbors = neighbors(x, y);
+        let offset = self.rng.random_range(..neighbors.len());
+
         for i in 0..8 {
             let (x, y) = neighbors[(i + offset) % 8];
             if x < self.width && y < self.height {

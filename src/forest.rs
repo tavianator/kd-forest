@@ -238,7 +238,7 @@ mod tests {
     use acap::exhaustive::ExhaustiveSearch;
     use acap::knn::{NearestNeighbors, Neighbor};
 
-    use rand::prelude::*;
+    use rand::random;
 
     type Point = Euclidean<[f32; 3]>;
 
